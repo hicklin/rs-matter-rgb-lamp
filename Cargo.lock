@@ -2031,6 +2031,7 @@ dependencies = [
  "heapless",
  "log",
  "portable-atomic",
+ "rs-matter",
  "rs-matter-embassy",
  "static_cell",
  "tinyrlibc",
@@ -2723,7 +2724,7 @@ dependencies = [
 [[package]]
 name = "rs-matter"
 version = "0.1.1"
-source = "git+https://github.com/ivmarkov/rs-matter?branch=next#4fef5f24512264513b63b2b2d71be85b265cb03e"
+source = "git+https://github.com/project-chip/rs-matter?branch=main#4fef5f24512264513b63b2b2d71be85b265cb03e"
 dependencies = [
  "aes",
  "astro-dnssd",
@@ -2799,7 +2800,7 @@ dependencies = [
 [[package]]
 name = "rs-matter-macros"
 version = "0.1.0"
-source = "git+https://github.com/ivmarkov/rs-matter?branch=next#4fef5f24512264513b63b2b2d71be85b265cb03e"
+source = "git+https://github.com/project-chip/rs-matter?branch=main#4fef5f24512264513b63b2b2d71be85b265cb03e"
 dependencies = [
  "convert_case 0.6.0",
  "miette",

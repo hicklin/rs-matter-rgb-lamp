@@ -13,12 +13,7 @@ harness = false
 #openthread = { version = "0.1", path = "../../../esp-openthread/openthread" }
 
 [patch.crates-io]
-#rs-matter = { git = "https://github.com/project-chip/rs-matter" }
-rs-matter = { git = "https://github.com/ivmarkov/rs-matter", branch = "next" }
-#rs-matter = { path = "../../../rs-matter/rs-matter" }
-#edge-nal = { git = "https://github.com/ivmarkov/edge-net" }
-#edge-nal-embassy = { git = "https://github.com/ivmarkov/edge-net" }
-#edge-mdns = { git = "https://github.com/ivmarkov/edge-net" }
+rs-matter = { git = "https://github.com/project-chip/rs-matter", branch = "main" }
 #trouble-host = { version = "0.1", git = "https://github.com/embassy-rs/trouble" }
 trouble-host = { version = "0.1", git = "https://github.com/ivmarkov/trouble", branch = "restore-pub" }
 #trouble-host = { version = "0.1", path = "../../../trouble/host" }
@@ -63,6 +58,7 @@ esp-ieee802154 = { version = "0.7", optional = true }
 esp-bootloader-esp-idf = "0.1"
 bt-hci = { version = "0.3.2" }
 heapless = "0.8"
+rs-matter = { version = "0.1", default-features = false }
 rs-matter-embassy = { git = "https://github.com/ivmarkov/rs-matter-embassy", features = ["esp", "embassy-net", "openthread", "log"] }
 tinyrlibc = { version = "0.5", default-features = false, features = ["utoa", "strtoul"] }
 embassy-sync = "0.7"
