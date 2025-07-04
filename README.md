@@ -1,5 +1,7 @@
 # (WIP) Matter RGB lamp
 
+**NOTE** This project is still very much a playground.
+
 This projects builds a Matter enabled RGB lamp.
 
 The current purpose of this project is to understand the user experience of the 

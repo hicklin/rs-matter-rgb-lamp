@@ -244,7 +244,7 @@ const LIGHT_ENDPOINT_ID: u16 = 1;
 // todo Using this is causing home assistant to loose the device after it is added. Check that the mandatory clusters etc. are supported.
 const DEV_TYPE_DIMMABLE_LIGHT: DeviceType = DeviceType {
     dtype: 0x0101,
-    drev: 2,
+    drev: 1,
 };
 
 /// The Matter Light device Node
