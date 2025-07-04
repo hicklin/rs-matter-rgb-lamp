@@ -14,6 +14,7 @@
 
 use core::mem::MaybeUninit;
 use core::pin::pin;
+use core::task::Context;
 
 use alloc::boxed::Box;
 
@@ -26,10 +27,11 @@ use esp_hal::timer::timg::TimerGroup;
 
 use log::info;
 
+use rs_matter::data_model::basic_info::ClusterHandler;
 use rs_matter_embassy::epoch::epoch;
 use rs_matter_embassy::matter::data_model::device_types::DEV_TYPE_ON_OFF_LIGHT;
 use rs_matter_embassy::matter::data_model::objects::{
-    Async, Dataver, EmptyHandler, Endpoint, EpClMatcher, Node,
+    Async, Dataver, EmptyHandler, Endpoint, EpClMatcher, Node, DeviceType
 };
 use rs_matter_embassy::matter::data_model::on_off::{self, ClusterHandler as _};
 use rs_matter_embassy::matter::data_model::system_model::desc::{self, ClusterHandler as _};
@@ -37,11 +39,13 @@ use rs_matter_embassy::matter::utils::init::InitMaybeUninit;
 use rs_matter_embassy::matter::utils::select::Coalesce;
 use rs_matter_embassy::matter::{clusters, devices};
 use rs_matter_embassy::rand::esp::{esp_init_rand, esp_rand};
+use rs_matter_embassy::stack::MdnsType;
 use rs_matter_embassy::stack::matter::test_device::{TEST_DEV_ATT, TEST_DEV_COMM, TEST_DEV_DET};
 use rs_matter_embassy::stack::persist::DummyKvBlobStore;
-use rs_matter_embassy::stack::MdnsType;
 use rs_matter_embassy::wireless::esp::EspWifiDriver;
 use rs_matter_embassy::wireless::{EmbassyWifi, EmbassyWifiMatterStack};
+
+use matter_rgb_lamp::data_model::level_control::{self, ClusterHandler as _};
 
 extern crate alloc;
 
@@ -101,6 +105,9 @@ async fn main(_s: Spawner) {
     // Can be anything implementing `rs_matter::data_model::AsyncHandler`
     let on_off = on_off::OnOffHandler::new(Dataver::new_rand(stack.matter().rand()));
 
+    let level_control =
+        level_control::LevelControlHandler::new(Dataver::new_rand(stack.matter().rand()));
+
     // Chain our endpoint clusters
     let handler = EmptyHandler
         // Our on-off cluster, on Endpoint 1
@@ -110,6 +117,15 @@ async fn main(_s: Spawner) {
                 Some(on_off::OnOffHandler::CLUSTER.id),
             ),
             Async(on_off::HandlerAdaptor(&on_off)),
+        )
+        .chain(
+            EpClMatcher::new(
+                Some(LIGHT_ENDPOINT_ID),
+                Some(level_control::LevelControlHandler::CLUSTER.id),
+            ),
+            // todo use
+            Async(level_control::HandlerAdaptor(&level_control)),
+            // Async(on_off::HandlerAdaptor(&on_off)),
         )
         // Each Endpoint needs a Descriptor cluster too
         // Just use the one that `rs-matter` provides out of the box
@@ -168,6 +184,12 @@ async fn main(_s: Spawner) {
 /// the hidden Matter system clusters, so we pick ID=1
 const LIGHT_ENDPOINT_ID: u16 = 1;
 
+// todo Using this is causing home assistant to loose the device after it is added. Check that the mandatory clusters etc. are supported.
+const DEV_TYPE_DIMMABLE_LIGHT: DeviceType = DeviceType {
+    dtype: 0x0101,
+    drev: 2,
+};
+
 /// The Matter Light device Node
 const NODE: Node = Node {
     id: 0,
@@ -175,8 +197,12 @@ const NODE: Node = Node {
         EmbassyWifiMatterStack::<()>::root_endpoint(),
         Endpoint {
             id: LIGHT_ENDPOINT_ID,
-            device_types: devices!(DEV_TYPE_ON_OFF_LIGHT),
-            clusters: clusters!(desc::DescHandler::CLUSTER, on_off::OnOffHandler::CLUSTER),
+            device_types: devices!(DEV_TYPE_DIMMABLE_LIGHT),
+            clusters: clusters!(
+                desc::DescHandler::CLUSTER,
+                on_off::OnOffHandler::CLUSTER,
+                level_control::LevelControlHandler::CLUSTER
+            ),
         },
     ],
 };
