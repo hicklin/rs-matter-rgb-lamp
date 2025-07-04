@@ -19,11 +19,11 @@ use core::task::Context;
 use alloc::boxed::Box;
 
 use embassy_executor::Spawner;
-use embassy_futures::select::select;
+use embassy_futures::select::select3;
 use embassy_time::{Duration, Timer};
 
 use esp_backtrace as _;
-use esp_hal::timer::timg::TimerGroup;
+use esp_hal::{timer::timg::TimerGroup, rmt::Rmt, time::Rate};
 
 use log::info;
 
@@ -46,6 +46,13 @@ use rs_matter_embassy::wireless::esp::EspWifiDriver;
 use rs_matter_embassy::wireless::{EmbassyWifi, EmbassyWifiMatterStack};
 
 use matter_rgb_lamp::data_model::level_control::{self, ClusterHandler as _};
+
+use esp_hal_smartled::{buffer_size_async, SmartLedsAdapterAsync};
+use smart_leds::{
+    brightness, gamma,
+    hsv::{hsv2rgb, Hsv},
+    SmartLedsWriteAsync, RGB8,
+};
 
 extern crate alloc;
 
@@ -155,6 +162,55 @@ async fn main(_s: Spawner) {
         (),
     ));
 
+    // == Step 5: ==
+    // Setup the LED
+    // Configure RMT (Remote Control Transceiver) peripheral globally
+    // <https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/peripherals/rmt.html>
+    let rmt: Rmt<'_, esp_hal::Async> = {
+        let frequency: Rate = {Rate::from_mhz(80)};
+        Rmt::new(peripherals.RMT, frequency)
+    }
+    .expect("Failed to initialize RMT")
+    .into_async();
+
+    // We use one of the RMT channels to instantiate a `SmartLedsAdapterAsync` which can
+    // be used directly with all `smart_led` implementations
+    let rmt_channel = rmt.channel0;
+    let rmt_buffer = [0_u32; buffer_size_async(1)];
+
+    // Each devkit uses a unique GPIO for the RGB LED, so in order to support
+    // all chips we must unfortunately use `#[cfg]`s:
+    let mut led: SmartLedsAdapterAsync<_, 25> = {
+        SmartLedsAdapterAsync::new(rmt_channel, peripherals.GPIO8, rmt_buffer)
+    };
+
+    let mut colour = Hsv {
+        hue: 0,
+        sat: 255,
+        val: 255,
+    };
+    let mut data: RGB8 = hsv2rgb(colour);
+    let level = 10;
+
+    // The LED task
+    let mut led = pin!(async {
+        loop {
+            for hue in 0..=255 {
+                colour.hue = hue;
+                // Convert from the HSV colour space (where we can easily transition from one
+                // colour to the other) to the RGB colour space that we can then send to the LED
+                data = hsv2rgb(colour);
+                // When sending to the LED, we do a gamma correction first (see smart_leds
+                // documentation for details) and then limit the brightness to 10 out of 255 so
+                // that the output is not too bright.
+                led.write(brightness(gamma([data].into_iter()), level))
+                    .await
+                    .unwrap();
+                Timer::after(Duration::from_millis(10)).await;
+            }
+        }
+    });
+
     // Just for demoing purposes:
     //
     // Run a sample loop that simulates state changes triggered by the HAL
@@ -173,11 +229,12 @@ async fn main(_s: Spawner) {
             stack.notify_changed();
 
             info!("Light toggled");
+
         }
     });
 
     // Schedule the Matter run & the device loop together
-    select(&mut matter, &mut device).coalesce().await.unwrap();
+    select3(&mut matter, &mut device, &mut led).coalesce().await.unwrap();
 }
 
 /// Endpoint 0 (the root endpoint) always runs
