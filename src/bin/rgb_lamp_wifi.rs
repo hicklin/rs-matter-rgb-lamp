@@ -14,7 +14,6 @@
 
 use core::mem::MaybeUninit;
 use core::pin::pin;
-use core::task::Context;
 
 use alloc::boxed::Box;
 
@@ -27,9 +26,7 @@ use esp_hal::{timer::timg::TimerGroup, rmt::Rmt, time::Rate};
 
 use log::info;
 
-use rs_matter::data_model::basic_info::ClusterHandler;
 use rs_matter_embassy::epoch::epoch;
-use rs_matter_embassy::matter::data_model::device_types::DEV_TYPE_ON_OFF_LIGHT;
 use rs_matter_embassy::matter::data_model::objects::{
     Async, Dataver, EmptyHandler, Endpoint, EpClMatcher, Node, DeviceType
 };
