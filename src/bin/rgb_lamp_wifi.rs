@@ -30,7 +30,6 @@ use rs_matter_embassy::epoch::epoch;
 use rs_matter_embassy::matter::data_model::objects::{
     Async, Dataver, EmptyHandler, Endpoint, EpClMatcher, Node, DeviceType
 };
-use rs_matter_embassy::matter::data_model::on_off::{self, ClusterHandler as _};
 use rs_matter_embassy::matter::data_model::system_model::desc::{self, ClusterHandler as _};
 use rs_matter_embassy::matter::utils::init::InitMaybeUninit;
 use rs_matter_embassy::matter::utils::select::Coalesce;
@@ -42,6 +41,7 @@ use rs_matter_embassy::stack::persist::DummyKvBlobStore;
 use rs_matter_embassy::wireless::esp::EspWifiDriver;
 use rs_matter_embassy::wireless::{EmbassyWifi, EmbassyWifiMatterStack};
 
+use matter_rgb_lamp::data_model::on_off::{self, ClusterHandler as _};
 use matter_rgb_lamp::data_model::level_control::{self, ClusterHandler as _};
 
 use esp_hal_smartled::{buffer_size_async, SmartLedsAdapterAsync};
@@ -223,7 +223,7 @@ async fn main(_s: Spawner) {
 
             // Let the Matter stack know that we have changed
             // the state of our Light device
-            stack.notify_changed();
+            // stack.notify_changed();
 
             info!("Light toggled");
 

@@ -1,5 +1,5 @@
 use core::cell::Cell;
-use log::{warn, info, debug};
+use log::{warn, info};
 use rs_matter::data_model::objects::{Dataver, ReadContext, WriteContext, InvokeContext};
 use rs_matter::tlv::Nullable;
 
@@ -14,20 +14,22 @@ pub struct LevelControlHandler {
     on_level: Cell<Nullable<u8>>,
     current_level: Cell<u8>,
     startup_current_level: Cell<Nullable<u8>>,
+    remaining_time: Cell<u16>,
 }
 
 impl LevelControlHandler {
     const MIN_LEVEL: u8 = 1;
-    const MAX_LEVEL: u8 = 255;
+    const MAX_LEVEL: u8 = 100;
 
     pub fn new(dataver: Dataver) -> Self {
         Self {
             dataver,
             options: OptionsBitmap::from_bits(level_control::OptionsBitmap::EXECUTE_IF_OFF.bits() as u8)
                 .unwrap(),
-            on_level: Cell::new(Nullable::some(Self::MIN_LEVEL)),
+            on_level: Cell::new(Nullable::some(42)),
             current_level: Cell::new(Self::MIN_LEVEL),
-            startup_current_level: Cell::new(Nullable::some(Self::MIN_LEVEL)),
+            startup_current_level: Cell::new(Nullable::some(73)),
+            remaining_time: Cell::new(0),
         }
     }
 
@@ -36,18 +38,31 @@ impl LevelControlHandler {
     fn should_continue(&self, options_mask: OptionsBitmap, options_override: OptionsBitmap) -> bool {
         let temporary_options = (options_mask & options_override) | self.options;
 
-        if temporary_options.contains(level_control::OptionsBitmap::EXECUTE_IF_OFF) {
-            return true;
-        }
-
-        false
+        temporary_options.contains(level_control::OptionsBitmap::EXECUTE_IF_OFF)
     }
 
-    fn transition_to_level(&self, level: u8) {
-        // todo implement with the transition time. For now we have a step change.
+    fn move_to_level(&self, level: u8, with_on_off: bool, transition_time: Option<u16>, options_mask: OptionsBitmap, options_override: OptionsBitmap) -> Result<(), Error> {
+        if level > Self::MAX_LEVEL || level < Self::MIN_LEVEL {
+            return Err(Error::new(ErrorCode::InvalidCommand))
+        }
+
+        if with_on_off && !self.should_continue(options_mask, options_override) {
+            return Ok(());
+        }
 
         info!("setting level to {}", level);
-        self.current_level.set(level);
+
+        match transition_time {
+            None | Some(0) => {
+                self.current_level.set(level);
+            }
+            Some(_t_time) => {
+                warn!("Transitioning is not implemented. Issuing a step change.");
+                self.current_level.set(level);
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -88,7 +103,7 @@ impl ClusterHandler for LevelControlHandler {
         &self,
         _ctx: &ReadContext<'_>,
     ) -> Result<Nullable<u8>, Error> {
-        debug!("current_level called!");
+        info!("current_level called!");
         Ok(Nullable::some(self.current_level.get()))
     }
 
@@ -96,7 +111,7 @@ impl ClusterHandler for LevelControlHandler {
         &self,
         _ctx: &ReadContext<'_>,
     ) -> Result<OptionsBitmap, Error> {
-        debug!("options called!");
+        info!("options called!");
         Ok(self.options)
     }
 
@@ -104,7 +119,7 @@ impl ClusterHandler for LevelControlHandler {
         &self,
         _ctx: &ReadContext<'_>,
     ) -> Result<Nullable<u8>, Error> {
-        debug!("on_level called!");
+        info!("on_level called!");
         let val = self.on_level.take();
         self.on_level.set(val.clone());
 
@@ -122,27 +137,28 @@ impl ClusterHandler for LevelControlHandler {
 
     fn set_on_level(
         &self,
-        _ctx: &WriteContext<'_>,
+        ctx: &WriteContext<'_>,
         value: Nullable<u8>,
     ) -> Result<(), Error> {
-        debug!("set_on_level called");
+        info!("set_on_level called");
         self.on_level.set(value);
+        self.dataver_changed();
+        ctx.notify_changed();
         Ok(())
     }
 
     fn remaining_time(&self, _ctx: &ReadContext<'_>) -> Result<u16,rs_matter::error::Error> {
-        debug!("remaining_time called!");
-        // todo this is a dummy return.
-        Ok(0)
+        info!("remaining_time called!");
+        Ok(self.remaining_time.get())
     }
 
     fn max_level(&self, _ctx: &ReadContext<'_>) -> Result<u8,rs_matter::error::Error> {
-        debug!("max_level called!");
+        info!("max_level called!");
         Ok(Self::MAX_LEVEL)
     }
 
     fn min_level(&self, _ctx: &ReadContext<'_>) -> Result<u8,rs_matter::error::Error> {
-        debug!("min_level called!");
+        info!("min_level called!");
         Ok(Self::MIN_LEVEL)
     }
 
@@ -154,9 +170,11 @@ impl ClusterHandler for LevelControlHandler {
         Ok(val)
     }
 
-    fn set_start_up_current_level(&self, _ctx: &WriteContext<'_> ,value:rs_matter::tlv::Nullable<u8>) -> Result<(),rs_matter::error::Error> {
-        debug!("set_start_up_current_level called!");
+    fn set_start_up_current_level(&self, ctx: &WriteContext<'_>, value:rs_matter::tlv::Nullable<u8>) -> Result<(),rs_matter::error::Error> {
+        info!("set_start_up_current_level called!");
         self.startup_current_level.set(value);
+        self.dataver_changed();
+        ctx.notify_changed();
         Ok(())
     }
 
@@ -165,16 +183,9 @@ impl ClusterHandler for LevelControlHandler {
         _ctx: &InvokeContext<'_>,
         request: MoveToLevelRequest<'_>,
     ) -> Result<(), Error> {
-        debug!("handle_move_to_level called!");
-        if !self.should_continue(request.options_mask()?, request.options_override()?) {
-            // todo Should this return an error?
-            debug!("Ignoring command due to options settings");
-            return Ok(());
-        }
+        info!("handle_move_to_level called!");
 
-        self.transition_to_level(request.level()?);
-
-        Ok(())
+        self.move_to_level(request.level()?, false, request.transition_time()?.into_option(), request.options_mask()?, request.options_override()?)
     }
 
     fn handle_move(
@@ -182,10 +193,11 @@ impl ClusterHandler for LevelControlHandler {
         _ctx: &InvokeContext<'_>,
         request: MoveRequest<'_>,
     ) -> Result<(), Error> {
-        debug!("handle_move called!");
+        info!("handle_move called!");
+
         if !self.should_continue(request.options_mask()?, request.options_override()?) {
             // todo Should this return an error?
-            debug!("Ignoring command due to options settings");
+            info!("Ignoring command due to options settings");
             return Ok(());
         }
 
@@ -206,10 +218,10 @@ impl ClusterHandler for LevelControlHandler {
         _ctx: &InvokeContext<'_>,
         request: StepRequest<'_>,
     ) -> Result<(), Error> {
-        debug!("handle_step called!");
+        info!("handle_step called!");
         if !self.should_continue(request.options_mask()?, request.options_override()?) {
             // todo Should this return an error?
-            debug!("Ignoring command due to options settings");
+            info!("Ignoring command due to options settings");
             return Ok(());
         }
 
@@ -221,10 +233,10 @@ impl ClusterHandler for LevelControlHandler {
         _ctx: &InvokeContext<'_>,
         request: StopRequest<'_>,
     ) -> Result<(), Error> {
-        debug!("handle_stop called!");
+        info!("handle_stop called!");
         if !self.should_continue(request.options_mask()?, request.options_override()?) {
             // todo Should this return an error?
-            debug!("Ignoring command due to options settings");
+            info!("Ignoring command due to options settings");
             return Ok(());
         }
 
@@ -234,10 +246,18 @@ impl ClusterHandler for LevelControlHandler {
     fn handle_move_to_level_with_on_off(
         &self,
         _ctx: &InvokeContext<'_>,
-        _request: MoveToLevelWithOnOffRequest<'_>,
+        request: MoveToLevelWithOnOffRequest<'_>,
     ) -> Result<(), Error> {
-        debug!("handle_move_to_level_with_on_off called!");
-        Ok(())
+        info!("handle_move_to_level_with_on_off called!");
+        info!("Got level: {}, options_mask: {:?}, options_override: {:?}, transition_time: {:?}", request.level()?, request.options_mask()?, request.options_override()?, request.transition_time()?);
+        let a = request.transition_time()?;
+
+        match a.into_option() {
+            Some(x) => info!("transition time: {}", x),
+            None => info!("transition time: None"),
+        }
+
+        self.move_to_level(request.level()?, true, request.transition_time()?.into_option(), request.options_mask()?, request.options_override()?)
     }
 
     fn handle_move_with_on_off(
@@ -245,7 +265,7 @@ impl ClusterHandler for LevelControlHandler {
         _ctx: &InvokeContext<'_>,
         _request: MoveWithOnOffRequest<'_>,
     ) -> Result<(), Error> {
-        debug!("handle_move_with_on_off called!");
+        info!("handle_move_with_on_off called!");
         Ok(())
     }
 
@@ -254,7 +274,7 @@ impl ClusterHandler for LevelControlHandler {
         _ctx: &InvokeContext<'_>,
         _request: StepWithOnOffRequest<'_>,
     ) -> Result<(), Error> {
-        debug!("handle_step_with_on_off called!");
+        info!("handle_step_with_on_off called!");
         Ok(())
     }
 
@@ -263,7 +283,7 @@ impl ClusterHandler for LevelControlHandler {
         _ctx: &InvokeContext<'_>,
         _request: StopWithOnOffRequest<'_>,
     ) -> Result<(), Error> {
-        debug!("handle_stop_with_on_off called!");
+        info!("handle_stop_with_on_off called!");
         Ok(())
     }
 
@@ -272,7 +292,7 @@ impl ClusterHandler for LevelControlHandler {
         _ctx: &rs_matter::data_model::objects::InvokeContext<'_>,
         _request: MoveToClosestFrequencyRequest<'_>,
     ) -> Result<(), Error> {
-        debug!("handle_move_to_closest_frequency called!");
+        info!("handle_move_to_closest_frequency called!");
         Ok(())
     }
 }
