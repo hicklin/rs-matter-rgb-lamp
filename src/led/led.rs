@@ -1,6 +1,10 @@
 use embassy_time::{Duration, Timer};
+use embassy_sync::channel::Receiver;
+use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 
-use esp_hal_smartled::{buffer_size_async, SmartLedsAdapterAsync};
+use log::{info, warn};
+
+use esp_hal_smartled::{buffer_size_async, LedAdapterError, SmartLedsAdapterAsync};
 use esp_hal::{peripherals, rmt::{Channel, Rmt}, time::Rate, Async, gpio::AnyPin};
 use smart_leds::{
     brightness, gamma,
@@ -8,29 +12,35 @@ use smart_leds::{
     SmartLedsWriteAsync, RGB8,
 };
 
-
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Mode {
     Solid,
-    Fade{fade_duration: u8},
-    ColourFade{fade_duration: u8},
-    ColourChanger{speed: u8},
+    Pulse{pulse_duration: u8},
+    ColourPulsing{pulse_duration: u8},
+    ColourChanging{speed: u8},
 }
 
-pub enum Cmd {
-    OnOff(bool),
-    Level(u8),
-    Colour{r: u8, g: u8, b: u8},
-    Mode(Mode),
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ControlMessage {
+    SetOn(Option<u8>), // The value is the on_level. None indicates off.
+    SetBrightness(u8),
+    SetColour{r: u8, g: u8, b: u8},
+    SetMode(Mode),
+    Reset,
 }
 
-pub struct Driver {
+type LedReceiver<'a> = Receiver<'a, CriticalSectionRawMutex, ControlMessage, 4>;
+
+pub struct Driver<'a> {
     led: SmartLedsAdapterAsync<Channel<Async, 0>, 25>,
+    receiver: LedReceiver<'a>,
     level: u8,
-    colour: Hsv,
+    colour: RGB8,
+    mode: Mode,
 }
 
-impl Driver {
-    pub fn new(rmt: peripherals::RMT, pin: AnyPin) -> Self {
+impl<'a> Driver<'a> {
+    pub fn new(rmt: peripherals::RMT, pin: AnyPin, receiver: LedReceiver<'a>) -> Self {
 
         // Setup the LED
         // Configure RMT (Remote Control Transceiver) peripheral globally
@@ -55,30 +65,89 @@ impl Driver {
 
         Self{
             led,
-            colour: Hsv {
-                hue: 0,
-                sat: 255,
-                val: 255,
+            receiver,
+            colour: RGB8 {
+                r: 239,
+                g: 235,
+                b: 216,
             },
-            level: 255,
+            level: 150,
+            mode: Mode::Solid,
         }
     }
 
+    // Sets the LED to the current values.
+    async fn update_led(&mut self) -> Result<(), LedAdapterError>{
+        self.led.write(brightness(gamma([self.colour].into_iter()), self.level)).await
+    }
+
     pub async fn run(mut self) -> ! {
+        self.update_led().await.unwrap();
+
         loop {
-            for hue in 0..=255 {
-                self.colour.hue = hue;
-                // Convert from the HSV colour space (where we can easily transition from one
-                // colour to the other) to the RGB colour space that we can then send to the LED
-                let data: RGB8 = hsv2rgb(self.colour);
-                // When sending to the LED, we do a gamma correction first (see smart_leds
-                // documentation for details) and then limit the brightness to 10 out of 255 so
-                // that the output is not too bright.
-                self.led.write(brightness(gamma([data].into_iter()), self.level))
-                    .await
-                    .unwrap();
-                Timer::after(Duration::from_millis(10)).await;
+            // todo: When we have effects, turn this into a select with a timeout of 100 ms.
+            let command = self.receiver.receive().await;
+            
+            match command {
+                ControlMessage::SetOn(on) => {
+                    match on {
+                        Some(on_level) => {
+                            self.level = on_level;
+                            self. update_led().await.unwrap();
+                        },
+                        None => {
+                            // todo: This will probably still consume some power. 
+                            //  We might want to switch off current to the LED if possible.
+                            self.level = 0;
+                            self. update_led().await.unwrap();
+                        },
+                    }
+                },
+                ControlMessage::SetBrightness(level) => {
+                            self.level = level;
+                            self. update_led().await.unwrap();
+                        },
+                ControlMessage::SetColour { r, g, b } => {
+                            self.colour = RGB8{
+                                r,
+                                g,
+                                b,
+                            };
+                            self. update_led().await.unwrap();
+                        },
+                ControlMessage::SetMode(mode) => {
+                            warn!("Only Solid mode supported at this time");
+                            self.mode = mode;
+                        },
+                ControlMessage::Reset => {
+                    self.colour = RGB8 {
+                        r: 220,
+                        g: 100,
+                        b: 20,
+                    };
+                    self.level = 255;
+                    self.mode = Mode::Solid;
+                    self.update_led().await.unwrap();
+                },
             }
+
+
+            // todo: do something similar for the ColourChanger mode.
+            // for hue in 0..=255 {
+            //     let hue_colour = Hsv {
+            //         hue: hue,
+            //         sat: 255,
+            //         val: 255,
+            //     };
+            //     // Convert from the HSV colour space (where we can easily transition from one
+            //     // colour to the other) to the RGB colour space that we can then send to the LED
+            //     self.colour = hsv2rgb(hue_colour);
+            //     // When sending to the LED, we do a gamma correction first (see smart_leds
+            //     // documentation for details) and then limit the brightness to 10 out of 255 so
+            //     // that the output is not too bright.
+            //     self.update_led().await.unwrap();
+            //     Timer::after(Duration::from_millis(10)).await;
+            // }
         }
     }
 }

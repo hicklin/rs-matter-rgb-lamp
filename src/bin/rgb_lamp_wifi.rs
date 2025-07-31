@@ -19,6 +19,8 @@ use alloc::boxed::Box;
 
 use embassy_executor::Spawner;
 use embassy_futures::select::{select, Either};
+use embassy_sync::channel::Channel;
+use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 
 use esp_backtrace as _;
 use esp_hal::{timer::timg::TimerGroup};
@@ -151,12 +153,15 @@ async fn main(_s: Spawner) {
         (),
     ));
 
+    let channel = Channel::<CriticalSectionRawMutex, led::ControlMessage, 4>::new();
+    let receiver = channel.receiver();
+
     // == Step 5: ==
     // Setup the LED
-    let led_driver = led::Driver::new(peripherals.RMT, peripherals.GPIO8.into());
+    let led_driver = led::Driver::new(peripherals.RMT, peripherals.GPIO8.into(), receiver);
     let mut led_task = pin!(led_driver.run());
-    
 
+    
     // // Just for demoing purposes:
     // //
     // // Run a sample loop that simulates state changes triggered by the HAL
