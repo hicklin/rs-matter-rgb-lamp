@@ -18,13 +18,12 @@ use core::pin::pin;
 use alloc::boxed::Box;
 
 use embassy_executor::Spawner;
-use embassy_futures::select::select3;
-use embassy_time::{Duration, Timer};
+use embassy_futures::select::{select, Either};
 
 use esp_backtrace as _;
-use esp_hal::{timer::timg::TimerGroup, rmt::Rmt, time::Rate};
+use esp_hal::{timer::timg::TimerGroup};
 
-use log::info;
+use log::{info, error};
 
 use rs_matter_embassy::epoch::epoch;
 use rs_matter_embassy::matter::data_model::objects::{
@@ -32,7 +31,6 @@ use rs_matter_embassy::matter::data_model::objects::{
 };
 use rs_matter_embassy::matter::data_model::system_model::desc::{self, ClusterHandler as _};
 use rs_matter_embassy::matter::utils::init::InitMaybeUninit;
-use rs_matter_embassy::matter::utils::select::Coalesce;
 use rs_matter_embassy::matter::{clusters, devices};
 use rs_matter_embassy::rand::esp::{esp_init_rand, esp_rand};
 use rs_matter_embassy::stack::MdnsType;
@@ -41,15 +39,9 @@ use rs_matter_embassy::stack::persist::DummyKvBlobStore;
 use rs_matter_embassy::wireless::esp::EspWifiDriver;
 use rs_matter_embassy::wireless::{EmbassyWifi, EmbassyWifiMatterStack};
 
+use matter_rgb_lamp::led::led;
 use matter_rgb_lamp::data_model::on_off::{self, ClusterHandler as _};
 use matter_rgb_lamp::data_model::level_control::{self, ClusterHandler as _};
-
-use esp_hal_smartled::{buffer_size_async, SmartLedsAdapterAsync};
-use smart_leds::{
-    brightness, gamma,
-    hsv::{hsv2rgb, Hsv},
-    SmartLedsWriteAsync, RGB8,
-};
 
 extern crate alloc;
 
@@ -161,77 +153,42 @@ async fn main(_s: Spawner) {
 
     // == Step 5: ==
     // Setup the LED
-    // Configure RMT (Remote Control Transceiver) peripheral globally
-    // <https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/peripherals/rmt.html>
-    let rmt: Rmt<'_, esp_hal::Async> = {
-        let frequency: Rate = {Rate::from_mhz(80)};
-        Rmt::new(peripherals.RMT, frequency)
-    }
-    .expect("Failed to initialize RMT")
-    .into_async();
+    let led_driver = led::Driver::new(peripherals.RMT, peripherals.GPIO8.into());
+    let mut led_task = pin!(led_driver.run());
+    
 
-    // We use one of the RMT channels to instantiate a `SmartLedsAdapterAsync` which can
-    // be used directly with all `smart_led` implementations
-    let rmt_channel = rmt.channel0;
-    let rmt_buffer = [0_u32; buffer_size_async(1)];
+    // // Just for demoing purposes:
+    // //
+    // // Run a sample loop that simulates state changes triggered by the HAL
+    // // Changes will be properly communicated to the Matter controllers
+    // // (i.e. Google Home, Alexa) and other Matter devices thanks to subscriptions
+    // let mut device = pin!(async {
+    //     loop {
+    //         // Simulate user toggling the light with a physical switch every 5 seconds
+    //         Timer::after(Duration::from_secs(5)).await;
 
-    // Each devkit uses a unique GPIO for the RGB LED, so in order to support
-    // all chips we must unfortunately use `#[cfg]`s:
-    let mut led: SmartLedsAdapterAsync<_, 25> = {
-        SmartLedsAdapterAsync::new(rmt_channel, peripherals.GPIO8, rmt_buffer)
-    };
+    //         // Toggle
+    //         on_off.set(!on_off.get());
 
-    let mut colour = Hsv {
-        hue: 0,
-        sat: 255,
-        val: 255,
-    };
-    let mut data: RGB8 = hsv2rgb(colour);
-    let level = 10;
+    //         // Let the Matter stack know that we have changed
+    //         // the state of our Light device
+    //         stack.notify_changed();
 
-    // The LED task
-    let mut led = pin!(async {
-        loop {
-            for hue in 0..=255 {
-                colour.hue = hue;
-                // Convert from the HSV colour space (where we can easily transition from one
-                // colour to the other) to the RGB colour space that we can then send to the LED
-                data = hsv2rgb(colour);
-                // When sending to the LED, we do a gamma correction first (see smart_leds
-                // documentation for details) and then limit the brightness to 10 out of 255 so
-                // that the output is not too bright.
-                led.write(brightness(gamma([data].into_iter()), level))
-                    .await
-                    .unwrap();
-                Timer::after(Duration::from_millis(10)).await;
-            }
-        }
-    });
+    //         info!("Light toggled");
 
-    // Just for demoing purposes:
-    //
-    // Run a sample loop that simulates state changes triggered by the HAL
-    // Changes will be properly communicated to the Matter controllers
-    // (i.e. Google Home, Alexa) and other Matter devices thanks to subscriptions
-    let mut device = pin!(async {
-        loop {
-            // Simulate user toggling the light with a physical switch every 5 seconds
-            Timer::after(Duration::from_secs(5)).await;
-
-            // Toggle
-            on_off.set(!on_off.get());
-
-            // Let the Matter stack know that we have changed
-            // the state of our Light device
-            // stack.notify_changed();
-
-            info!("Light toggled");
-
-        }
-    });
+    //     }
+    // });
 
     // Schedule the Matter run & the device loop together
-    select3(&mut matter, &mut device, &mut led).coalesce().await.unwrap();
+    // select3(&mut matter, &mut device, &mut led_task).coalesce().await.unwrap();
+    match select(&mut matter, &mut led_task).await {
+        Either::First(_) => {
+            error!("Matter thread exited!")
+        },
+        Either::Second(_) => {
+            error!("LED thread exited!")
+        },
+    }
 }
 
 /// Endpoint 0 (the root endpoint) always runs

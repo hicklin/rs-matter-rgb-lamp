@@ -257,7 +257,12 @@ impl ClusterHandler for LevelControlHandler {
             None => info!("transition time: None"),
         }
 
-        self.move_to_level(request.level()?, true, request.transition_time()?.into_option(), request.options_mask()?, request.options_override()?)
+        let res = self.move_to_level(request.level()?, true, request.transition_time()?.into_option(), request.options_mask()?, request.options_override()?);
+        if res.is_ok() {
+            // business logic
+            // todo: change the brightness of the LED
+        }
+        res
     }
 
     fn handle_move_with_on_off(
