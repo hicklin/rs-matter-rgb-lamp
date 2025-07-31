@@ -33,6 +33,11 @@ impl LevelControlHandler {
         }
     }
 
+    /// Adapt the handler instance to the generic `rs-matter` `Handler` trait
+    pub const fn adapt(self) -> HandlerAdaptor<Self> {
+        HandlerAdaptor(self)
+    }
+
     // Processes the options of commands 'without On/Off'.
     // Returns true if execution of the command should continue, false otherwise.
     fn should_continue(&self, options_mask: OptionsBitmap, options_override: OptionsBitmap) -> bool {

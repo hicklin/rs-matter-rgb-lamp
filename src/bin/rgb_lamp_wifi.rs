@@ -42,7 +42,7 @@ use rs_matter_embassy::wireless::esp::EspWifiDriver;
 use rs_matter_embassy::wireless::{EmbassyWifi, EmbassyWifiMatterStack};
 
 use matter_rgb_lamp::led::led;
-use matter_rgb_lamp::data_model::on_off::{self, ClusterHandler as _};
+use matter_rgb_lamp::data_model::on_off::{self, ClusterAsyncHandler as _,};
 use matter_rgb_lamp::data_model::level_control::{self, ClusterHandler as _};
 
 extern crate alloc;
@@ -99,12 +99,9 @@ async fn main(_s: Spawner) {
     ));
 
     // == Step 3: ==
-    // Our "light" on-off cluster.
-    // Can be anything implementing `rs_matter::data_model::AsyncHandler`
-    let on_off = on_off::OnOffHandler::new(Dataver::new_rand(stack.matter().rand()));
-
-    let level_control =
-        level_control::LevelControlHandler::new(Dataver::new_rand(stack.matter().rand()));
+    // Set up Matter data model handler
+    let channel = Channel::<CriticalSectionRawMutex, led::ControlMessage, 4>::new();
+    let sender = channel.sender();
 
     // Chain our endpoint clusters
     let handler = EmptyHandler
@@ -114,16 +111,14 @@ async fn main(_s: Spawner) {
                 Some(LIGHT_ENDPOINT_ID),
                 Some(on_off::OnOffHandler::CLUSTER.id),
             ),
-            Async(on_off::HandlerAdaptor(&on_off)),
+            on_off::OnOffHandler::new(Dataver::new_rand(stack.matter().rand()), sender).adapt(),
         )
         .chain(
             EpClMatcher::new(
                 Some(LIGHT_ENDPOINT_ID),
                 Some(level_control::LevelControlHandler::CLUSTER.id),
             ),
-            // todo use
-            Async(level_control::HandlerAdaptor(&level_control)),
-            // Async(on_off::HandlerAdaptor(&on_off)),
+            Async(level_control::LevelControlHandler::new(Dataver::new_rand(stack.matter().rand())).adapt()),
         )
         // Each Endpoint needs a Descriptor cluster too
         // Just use the one that `rs-matter` provides out of the box
@@ -153,7 +148,6 @@ async fn main(_s: Spawner) {
         (),
     ));
 
-    let channel = Channel::<CriticalSectionRawMutex, led::ControlMessage, 4>::new();
     let receiver = channel.receiver();
 
     // == Step 5: ==

@@ -1,5 +1,5 @@
 use embassy_time::{Duration, Timer};
-use embassy_sync::channel::Receiver;
+use embassy_sync::channel::{Sender, Receiver};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 
 use log::{info, warn};
@@ -29,7 +29,8 @@ pub enum ControlMessage {
     Reset,
 }
 
-type LedReceiver<'a> = Receiver<'a, CriticalSectionRawMutex, ControlMessage, 4>;
+pub type LedSender<'a> = Sender<'a, CriticalSectionRawMutex, ControlMessage, 4>;
+pub type LedReceiver<'a> = Receiver<'a, CriticalSectionRawMutex, ControlMessage, 4>;
 
 pub struct Driver<'a> {
     led: SmartLedsAdapterAsync<Channel<Async, 0>, 25>,
