@@ -32,19 +32,19 @@ pub use crate::data_model::clusters::on_off::*;
 
 /// A sample implementation of a handler for the On/Off Matter cluster.
 #[derive(Clone)]
-pub struct OnOffHandler<'a> {
+pub struct OnOffCluster<T> where T: OnOffHooks {
     dataver: Dataver,
     on: Cell<bool>,
-    sender: LedSender<'a>,
+    handler: T,
 }
 
-impl<'a> OnOffHandler<'a> {
+impl<T> OnOffCluster<T> where T: OnOffHooks {
     /// Creates a new instance of `OnOffHandler` with the given `Dataver`.
-    pub const fn new(dataver: Dataver, sender: LedSender<'a>) -> Self {
+    pub const fn new(dataver: Dataver, handler: T) -> Self {
         Self {
             dataver,
             on: Cell::new(false),
-            sender,
+            handler,
         }
     }
 
@@ -53,27 +53,21 @@ impl<'a> OnOffHandler<'a> {
         HandlerAsyncAdaptor(self)
     }
 
-    /// Return the current state of the On/Off attribute.
-    pub fn get(&self) -> bool {
-        self.on.get()
-    }
-
     /// Set the On/Off attribute to the given value and notify potential subscribers.
-    pub async fn set(&self, on: bool) {
+    pub fn set(&self, ctx: &InvokeContext<'_>, on: bool) -> Result<(), Error> {
         if self.on.get() != on {
-            if on {
-                // todo: get on_level from levelControl
-                self.sender.send(ControlMessage::SetOn(Some(150))).await;
-            } else {
-                self.sender.send(ControlMessage::SetOn(None)).await;
-            }
+            // execute the business logic
+            self.handler.set_on(ctx, on)?;
+
             self.on.set(on);
             self.dataver.changed();
+            ctx.notify_changed();
         }
+        Ok(())
     }
 }
 
-impl<'a> ClusterAsyncHandler for OnOffHandler<'a> {
+impl<T> ClusterAsyncHandler for OnOffCluster<T> where T: OnOffHooks {
     const CLUSTER: Cluster<'static> = FULL_CLUSTER
         .with_revision(1)
         .with_attrs(with!(required))
@@ -92,21 +86,15 @@ impl<'a> ClusterAsyncHandler for OnOffHandler<'a> {
     }
 
     async fn handle_off(&self, ctx: &InvokeContext<'_>) -> Result<(), Error> {
-        self.set(false).await;
-        ctx.notify_changed();
-        Ok(())
+        self.set(ctx, false)
     }
 
     async fn handle_on(&self, ctx: &InvokeContext<'_>) -> Result<(), Error> {
-        self.set(true).await;
-        ctx.notify_changed();
-        Ok(())
+        self.set(ctx, true)
     }
 
     async fn handle_toggle(&self, ctx: &InvokeContext<'_>) -> Result<(), Error> {
-        self.set(!self.on.get()).await;
-        ctx.notify_changed();
-        Ok(())
+        self.set(ctx, !self.on.get())
     }
 
     async fn handle_off_with_effect(
@@ -128,4 +116,30 @@ impl<'a> ClusterAsyncHandler for OnOffHandler<'a> {
     ) -> Result<(), Error> {
         Err(ErrorCode::InvalidCommand.into())
     }
+}
+
+pub trait OnOffHooks {
+    fn set_on(&self, ctx: &InvokeContext<'_>, on: bool) -> Result<(), Error>;
+}
+
+#[derive(Clone)]
+pub struct OnOffHandler<'a> {
+    sender: LedSender<'a>,
+}
+
+impl<'a> OnOffHandler<'a> {
+    pub const fn new(sender: LedSender<'a>) -> Self {
+        Self {
+            sender,
+        }
+    }
+}
+
+impl<'a> OnOffHooks for OnOffHandler<'a> {
+    fn set_on(&self, _ctx: &InvokeContext<'_>, on: bool) -> Result<(), Error> {
+        match on {
+            true =>  self.sender.try_send(ControlMessage::SetOn(Some(150))).map_err(|_| Error::new(ErrorCode::Busy)),
+            false => self.sender.try_send(ControlMessage::SetOn(None)).map_err(|_| Error::new(ErrorCode::Busy)),
+        }
+    }    
 }

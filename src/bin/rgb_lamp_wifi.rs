@@ -42,7 +42,7 @@ use rs_matter_embassy::wireless::esp::EspWifiDriver;
 use rs_matter_embassy::wireless::{EmbassyWifi, EmbassyWifiMatterStack};
 
 use matter_rgb_lamp::led::led;
-use matter_rgb_lamp::data_model::on_off::{self, ClusterAsyncHandler as _,};
+use matter_rgb_lamp::data_model::on_off::{self, ClusterAsyncHandler as _, OnOffHandler,};
 use matter_rgb_lamp::data_model::level_control::{self, ClusterHandler as _};
 
 extern crate alloc;
@@ -103,15 +103,17 @@ async fn main(_s: Spawner) {
     let channel = Channel::<CriticalSectionRawMutex, led::ControlMessage, 4>::new();
     let sender = channel.sender();
 
+    let on_off_handler = OnOffHandler::new(sender);
+
     // Chain our endpoint clusters
     let handler = EmptyHandler
         // Our on-off cluster, on Endpoint 1
         .chain(
             EpClMatcher::new(
                 Some(LIGHT_ENDPOINT_ID),
-                Some(on_off::OnOffHandler::CLUSTER.id),
+                Some(on_off::OnOffCluster::<OnOffHandler>::CLUSTER.id),
             ),
-            on_off::OnOffHandler::new(Dataver::new_rand(stack.matter().rand()), sender).adapt(),
+            on_off::OnOffCluster::new(Dataver::new_rand(stack.matter().rand()), on_off_handler).adapt(),
         )
         .chain(
             EpClMatcher::new(
@@ -210,7 +212,7 @@ const NODE: Node = Node {
             device_types: devices!(DEV_TYPE_DIMMABLE_LIGHT),
             clusters: clusters!(
                 desc::DescHandler::CLUSTER,
-                on_off::OnOffHandler::CLUSTER,
+                on_off::OnOffCluster::<OnOffHandler>::CLUSTER,
                 level_control::LevelControlHandler::CLUSTER
             ),
         },
