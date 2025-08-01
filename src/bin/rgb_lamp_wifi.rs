@@ -43,7 +43,7 @@ use rs_matter_embassy::wireless::{EmbassyWifi, EmbassyWifiMatterStack};
 
 use matter_rgb_lamp::led::led;
 use matter_rgb_lamp::data_model::on_off::{self, ClusterAsyncHandler as _, OnOffHandler,};
-use matter_rgb_lamp::data_model::level_control::{self, ClusterHandler as _};
+use matter_rgb_lamp::data_model::level_control::{self, ClusterHandler as _, LevelControlHandler};
 
 extern crate alloc;
 
@@ -103,7 +103,8 @@ async fn main(_s: Spawner) {
     let channel = Channel::<CriticalSectionRawMutex, led::ControlMessage, 4>::new();
     let sender = channel.sender();
 
-    let on_off_handler = OnOffHandler::new(sender);
+    let on_off_handler = OnOffHandler::new(sender.clone());
+    let level_control_handler = LevelControlHandler::new(sender);
 
     // Chain our endpoint clusters
     let handler = EmptyHandler
@@ -118,9 +119,9 @@ async fn main(_s: Spawner) {
         .chain(
             EpClMatcher::new(
                 Some(LIGHT_ENDPOINT_ID),
-                Some(level_control::LevelControlHandler::CLUSTER.id),
+                Some(level_control::LevelControlCluster::<LevelControlHandler>::CLUSTER.id),
             ),
-            Async(level_control::LevelControlHandler::new(Dataver::new_rand(stack.matter().rand())).adapt()),
+            Async(level_control::LevelControlCluster::new(Dataver::new_rand(stack.matter().rand()), level_control_handler).adapt()),
         )
         // Each Endpoint needs a Descriptor cluster too
         // Just use the one that `rs-matter` provides out of the box
@@ -213,7 +214,7 @@ const NODE: Node = Node {
             clusters: clusters!(
                 desc::DescHandler::CLUSTER,
                 on_off::OnOffCluster::<OnOffHandler>::CLUSTER,
-                level_control::LevelControlHandler::CLUSTER
+                level_control::LevelControlCluster::<LevelControlHandler>::CLUSTER
             ),
         },
     ],

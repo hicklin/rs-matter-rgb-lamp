@@ -1,14 +1,12 @@
-use embassy_time::{Duration, Timer};
 use embassy_sync::channel::{Sender, Receiver};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 
-use log::{info, warn};
+use log::{warn};
 
 use esp_hal_smartled::{buffer_size_async, LedAdapterError, SmartLedsAdapterAsync};
 use esp_hal::{peripherals, rmt::{Channel, Rmt}, time::Rate, Async, gpio::AnyPin};
 use smart_leds::{
     brightness, gamma,
-    hsv::{hsv2rgb, Hsv},
     SmartLedsWriteAsync, RGB8,
 };
 

@@ -8,28 +8,28 @@ pub use crate::data_model::clusters::level_control::*;
 use rs_matter::with;
 use rs_matter::error::{Error, ErrorCode};
 
-pub struct LevelControlHandler {
+pub struct LevelControlCluster<T: LevelControlHooks> {
     dataver: Dataver,
     options: OptionsBitmap,
     on_level: Cell<Nullable<u8>>,
     current_level: Cell<u8>,
     startup_current_level: Cell<Nullable<u8>>,
     remaining_time: Cell<u16>,
+    handler: T,
 }
 
-impl LevelControlHandler {
-    const MIN_LEVEL: u8 = 1;
-    const MAX_LEVEL: u8 = 100;
+impl<T: LevelControlHooks> LevelControlCluster<T> {
 
-    pub fn new(dataver: Dataver) -> Self {
+    pub fn new(dataver: Dataver, handler: T) -> Self {
         Self {
             dataver,
             options: OptionsBitmap::from_bits(level_control::OptionsBitmap::EXECUTE_IF_OFF.bits() as u8)
                 .unwrap(),
             on_level: Cell::new(Nullable::some(42)),
-            current_level: Cell::new(Self::MIN_LEVEL),
+            current_level: Cell::new(T::MIN_LEVEL),
             startup_current_level: Cell::new(Nullable::some(73)),
             remaining_time: Cell::new(0),
+            handler,
         }
     }
 
@@ -46,11 +46,13 @@ impl LevelControlHandler {
         temporary_options.contains(level_control::OptionsBitmap::EXECUTE_IF_OFF)
     }
 
-    fn move_to_level(&self, level: u8, with_on_off: bool, transition_time: Option<u16>, options_mask: OptionsBitmap, options_override: OptionsBitmap) -> Result<(), Error> {
-        if level > Self::MAX_LEVEL || level < Self::MIN_LEVEL {
+    // A single method for dealing with the MoveToLevel and MoveToLevelWithOnOff logic.
+    fn move_to_level(&self, ctx: &InvokeContext<'_>, level: u8, transition_time: Option<u16>, options_mask: OptionsBitmap, options_override: OptionsBitmap) -> Result<(), Error> {
+        if level > T::MAX_LEVEL || level < T::MIN_LEVEL {
             return Err(Error::new(ErrorCode::InvalidCommand))
         }
 
+        let with_on_off = ctx.cmd().cmd_id == level_control::CommandId::MoveToLevelWithOnOff as u32;
         if with_on_off && !self.should_continue(options_mask, options_override) {
             return Ok(());
         }
@@ -59,10 +61,12 @@ impl LevelControlHandler {
 
         match transition_time {
             None | Some(0) => {
+                self.handler.set_level(ctx, level)?;
                 self.current_level.set(level);
             }
             Some(_t_time) => {
                 warn!("Transitioning is not implemented. Issuing a step change.");
+                self.handler.set_level(ctx, level)?;
                 self.current_level.set(level);
             }
         }
@@ -71,7 +75,7 @@ impl LevelControlHandler {
     }
 }
 
-impl ClusterHandler for LevelControlHandler {
+impl<T: LevelControlHooks> ClusterHandler for LevelControlCluster<T> {
     #[doc = "The cluster-metadata corresponding to this handler trait."]
     const CLUSTER: rs_matter::data_model::objects::Cluster<'static> = FULL_CLUSTER
         .with_revision(1)
@@ -159,12 +163,12 @@ impl ClusterHandler for LevelControlHandler {
 
     fn max_level(&self, _ctx: &ReadContext<'_>) -> Result<u8,rs_matter::error::Error> {
         info!("max_level called!");
-        Ok(Self::MAX_LEVEL)
+        Ok(T::MAX_LEVEL)
     }
 
     fn min_level(&self, _ctx: &ReadContext<'_>) -> Result<u8,rs_matter::error::Error> {
         info!("min_level called!");
-        Ok(Self::MIN_LEVEL)
+        Ok(T::MIN_LEVEL)
     }
 
     fn start_up_current_level(&self, _ctx: &rs_matter::data_model::objects::ReadContext<'_>) -> Result<rs_matter::tlv::Nullable<u8> ,rs_matter::error::Error> {
@@ -185,12 +189,12 @@ impl ClusterHandler for LevelControlHandler {
 
     fn handle_move_to_level(
         &self,
-        _ctx: &InvokeContext<'_>,
+        ctx: &InvokeContext<'_>,
         request: MoveToLevelRequest<'_>,
     ) -> Result<(), Error> {
         info!("handle_move_to_level called!");
 
-        self.move_to_level(request.level()?, false, request.transition_time()?.into_option(), request.options_mask()?, request.options_override()?)
+        self.move_to_level(ctx, request.level()?, request.transition_time()?.into_option(), request.options_mask()?, request.options_override()?)
     }
 
     fn handle_move(
@@ -250,24 +254,12 @@ impl ClusterHandler for LevelControlHandler {
 
     fn handle_move_to_level_with_on_off(
         &self,
-        _ctx: &InvokeContext<'_>,
+        ctx: &InvokeContext<'_>,
         request: MoveToLevelWithOnOffRequest<'_>,
     ) -> Result<(), Error> {
         info!("handle_move_to_level_with_on_off called!");
-        info!("Got level: {}, options_mask: {:?}, options_override: {:?}, transition_time: {:?}", request.level()?, request.options_mask()?, request.options_override()?, request.transition_time()?);
-        let a = request.transition_time()?;
 
-        match a.into_option() {
-            Some(x) => info!("transition time: {}", x),
-            None => info!("transition time: None"),
-        }
-
-        let res = self.move_to_level(request.level()?, true, request.transition_time()?.into_option(), request.options_mask()?, request.options_override()?);
-        if res.is_ok() {
-            // business logic
-            // todo: change the brightness of the LED
-        }
-        res
+        self.move_to_level(ctx, request.level()?, request.transition_time()?.into_option(), request.options_mask()?, request.options_override()?)
     }
 
     fn handle_move_with_on_off(
@@ -304,5 +296,39 @@ impl ClusterHandler for LevelControlHandler {
     ) -> Result<(), Error> {
         info!("handle_move_to_closest_frequency called!");
         Ok(())
+    }
+}
+
+
+pub trait LevelControlHooks {
+    const MIN_LEVEL: u8;
+    const MAX_LEVEL: u8;
+
+    fn set_level(&self, ctx: &InvokeContext<'_>, level: u8) -> Result<(), Error>;
+}
+
+// Todo: Move in a separate file
+
+use crate::led::led::{LedSender, ControlMessage};
+
+pub struct LevelControlHandler<'a> {
+    sender: LedSender<'a>,
+}
+
+impl<'a> LevelControlHandler<'a> {
+    pub fn new(sender: LedSender<'a>) -> Self {
+        Self {
+            sender,
+        }
+    }
+}
+
+impl<'a> LevelControlHooks for LevelControlHandler<'a> {
+    const MIN_LEVEL: u8 = 1;
+
+    const MAX_LEVEL: u8 = 255;
+    
+    fn set_level(&self, _ctx: &InvokeContext<'_>, level: u8) -> Result<(), Error> {
+        self.sender.try_send(ControlMessage::SetBrightness(level)).map_err(|_| Error::new(ErrorCode::Busy))
     }
 }
