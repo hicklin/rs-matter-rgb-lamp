@@ -56,6 +56,9 @@ impl<T> OnOffCluster<T> where T: OnOffHooks {
     /// Set the On/Off attribute to the given value and notify potential subscribers.
     pub fn set(&self, ctx: &InvokeContext<'_>, on: bool) -> Result<(), Error> {
         if self.on.get() != on {
+            // todo If there is a LevelControl cluster on the same endpoint, we should
+            // set the level to on_level when turning on the light.
+
             // execute the business logic
             self.handler.set_on(ctx, on)?;
 
@@ -121,6 +124,8 @@ impl<T> ClusterAsyncHandler for OnOffCluster<T> where T: OnOffHooks {
 pub trait OnOffHooks {
     fn set_on(&self, ctx: &InvokeContext<'_>, on: bool) -> Result<(), Error>;
 }
+
+// Todo: Move in a separate file
 
 #[derive(Clone)]
 pub struct OnOffHandler<'a> {

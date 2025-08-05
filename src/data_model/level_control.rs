@@ -4,7 +4,7 @@ use rs_matter::data_model::objects::{Dataver, ReadContext, WriteContext, InvokeC
 use rs_matter::tlv::Nullable;
 
 use crate::data_model::clusters::level_control;
-pub use crate::data_model::clusters::level_control::*;
+pub use crate::data_model::clusters::level_control::*; // todo why?
 use rs_matter::with;
 use rs_matter::error::{Error, ErrorCode};
 
@@ -78,9 +78,10 @@ impl<T: LevelControlHooks> LevelControlCluster<T> {
 impl<T: LevelControlHooks> ClusterHandler for LevelControlCluster<T> {
     #[doc = "The cluster-metadata corresponding to this handler trait."]
     const CLUSTER: rs_matter::data_model::objects::Cluster<'static> = FULL_CLUSTER
-        .with_revision(1)
-        .with_features(level_control::Feature::LIGHTING.bits() & level_control::Feature::ON_OFF.bits())
+        .with_revision(7)
+        .with_features(level_control::Feature::LIGHTING.bits() + level_control::Feature::ON_OFF.bits())
         .with_attrs(with!(
+            required;
             AttributeId::CurrentLevel 
             | AttributeId::RemainingTime
             | AttributeId::OnLevel
@@ -326,9 +327,9 @@ impl<'a> LevelControlHandler<'a> {
 impl<'a> LevelControlHooks for LevelControlHandler<'a> {
     const MIN_LEVEL: u8 = 1;
 
-    const MAX_LEVEL: u8 = 255;
+    const MAX_LEVEL: u8 = 254;
     
     fn set_level(&self, _ctx: &InvokeContext<'_>, level: u8) -> Result<(), Error> {
-        self.sender.try_send(ControlMessage::SetBrightness(level)).map_err(|_| Error::new(ErrorCode::Busy))
+        self.sender.try_send(ControlMessage::SetBrightness(level)).map_err(|_| ErrorCode::Busy.into())
     }
 }

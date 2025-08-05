@@ -6,6 +6,7 @@
   packages = [ 
     pkgs.git 
     pkgs.cargo-espflash
+    pkgs.cargo-expand
   ];
 
   languages.rust = {

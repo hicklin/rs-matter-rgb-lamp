@@ -44,6 +44,7 @@ use rs_matter_embassy::wireless::{EmbassyWifi, EmbassyWifiMatterStack};
 use matter_rgb_lamp::led::led;
 use matter_rgb_lamp::data_model::on_off::{self, ClusterAsyncHandler as _, OnOffHandler,};
 use matter_rgb_lamp::data_model::level_control::{self, ClusterHandler as _, LevelControlHandler};
+use matter_rgb_lamp::data_model::color_control::{self, ClusterHandler as _, ColorControlHandler};
 
 extern crate alloc;
 
@@ -104,7 +105,8 @@ async fn main(_s: Spawner) {
     let sender = channel.sender();
 
     let on_off_handler = OnOffHandler::new(sender.clone());
-    let level_control_handler = LevelControlHandler::new(sender);
+    let level_control_handler = LevelControlHandler::new(sender.clone());
+    let color_control_handler = ColorControlHandler::new(sender);
 
     // Chain our endpoint clusters
     let handler = EmptyHandler
@@ -122,6 +124,13 @@ async fn main(_s: Spawner) {
                 Some(level_control::LevelControlCluster::<LevelControlHandler>::CLUSTER.id),
             ),
             Async(level_control::LevelControlCluster::new(Dataver::new_rand(stack.matter().rand()), level_control_handler).adapt()),
+        )
+        .chain(
+            EpClMatcher::new(
+                Some(LIGHT_ENDPOINT_ID),
+                Some(color_control::ColorControlCluster::<ColorControlHandler>::CLUSTER.id),
+            ),
+            Async(color_control::ColorControlCluster::new(Dataver::new_rand(stack.matter().rand()), color_control_handler).adapt()),
         )
         // Each Endpoint needs a Descriptor cluster too
         // Just use the one that `rs-matter` provides out of the box
@@ -197,10 +206,9 @@ async fn main(_s: Spawner) {
 /// the hidden Matter system clusters, so we pick ID=1
 const LIGHT_ENDPOINT_ID: u16 = 1;
 
-// todo Using this is causing home assistant to loose the device after it is added. Check that the mandatory clusters etc. are supported.
-const DEV_TYPE_DIMMABLE_LIGHT: DeviceType = DeviceType {
-    dtype: 0x0101,
-    drev: 1,
+const DEV_TYPE_ENHANCED_COLOR_LIGHT: DeviceType = DeviceType {
+    dtype: 0x010D,
+    drev: 4,
 };
 
 /// The Matter Light device Node
@@ -210,11 +218,12 @@ const NODE: Node = Node {
         EmbassyWifiMatterStack::<()>::root_endpoint(),
         Endpoint {
             id: LIGHT_ENDPOINT_ID,
-            device_types: devices!(DEV_TYPE_DIMMABLE_LIGHT),
+            device_types: devices!(DEV_TYPE_ENHANCED_COLOR_LIGHT),
             clusters: clusters!(
                 desc::DescHandler::CLUSTER,
                 on_off::OnOffCluster::<OnOffHandler>::CLUSTER,
                 level_control::LevelControlCluster::<LevelControlHandler>::CLUSTER
+                color_control::ColorControlCluster::<ColorControlHandler>::CLUSTER
             ),
         },
     ],

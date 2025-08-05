@@ -92,19 +92,19 @@ impl<'a> Driver<'a> {
                     match on {
                         Some(on_level) => {
                             self.level = on_level;
-                            self. update_led().await.unwrap();
+                            self.update_led().await.unwrap();
                         },
                         None => {
                             // todo: This will probably still consume some power. 
                             //  We might want to switch off current to the LED if possible.
                             self.level = 0;
-                            self. update_led().await.unwrap();
+                            self.update_led().await.unwrap();
                         },
                     }
                 },
                 ControlMessage::SetBrightness(level) => {
                             self.level = level;
-                            self. update_led().await.unwrap();
+                            self.update_led().await.unwrap();
                         },
                 ControlMessage::SetColour { r, g, b } => {
                             self.colour = RGB8{
@@ -112,7 +112,7 @@ impl<'a> Driver<'a> {
                                 g,
                                 b,
                             };
-                            self. update_led().await.unwrap();
+                            self.update_led().await.unwrap();
                         },
                 ControlMessage::SetMode(mode) => {
                             warn!("Only Solid mode supported at this time");
