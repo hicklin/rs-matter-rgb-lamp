@@ -1,27 +1,42 @@
 use core::cell::Cell;
 use crate::led::led::{LedSender, ControlMessage};
+use crate::data_model::clusters::level_control::{OptionsBitmap};
+use crate::data_model::level_control::LevelControlHooks;
 use crate::data_model::on_off::OnOffHooks;
 
+use rs_matter::tlv::Nullable;
 use rs_matter::error::{Error, ErrorCode};
 use rs_matter::data_model::objects::{InvokeContext};
 
 
-#[derive(Clone)]
-pub struct OnOffHandler<'a> {
+pub struct LedHandler<'a> {
     sender: LedSender<'a>,
+    // OnOff Attributes
     on_off: Cell<bool>,
+    // LevelControl Attributes
+    options: Cell<OptionsBitmap>,
+    on_level: Cell<Nullable<u8>>,
+    current_level: Cell<u8>,
+    startup_current_level: Cell<Nullable<u8>>,
+    remaining_time: Cell<u16>,
 }
 
-impl<'a> OnOffHandler<'a> {
+impl<'a> LedHandler<'a> {
     pub const fn new(sender: LedSender<'a>) -> Self {
         Self {
             sender,
             on_off: Cell::new(false),
+            options: Cell::new(OptionsBitmap::from_bits(OptionsBitmap::EXECUTE_IF_OFF.bits() as u8)
+                .unwrap()),
+            on_level: Cell::new(Nullable::some(42)),
+            current_level: Cell::new(1),
+            startup_current_level: Cell::new(Nullable::some(73)),
+            remaining_time: Cell::new(0),
         }
     }
 }
 
-impl<'a> OnOffHooks for OnOffHandler<'a> {
+impl<'a> OnOffHooks for LedHandler<'a> {
     fn raw_get_on_off(&self) -> bool {
         self.on_off.get()
     }
@@ -39,36 +54,7 @@ impl<'a> OnOffHooks for OnOffHandler<'a> {
     }
 }
 
-// ---
-// use crate::data_model::clusters::level_control::*;
-use crate::data_model::clusters::level_control::{OptionsBitmap};
-use crate::data_model::level_control::LevelControlHooks;
-use rs_matter::tlv::Nullable;
-
-pub struct LevelControlHandler<'a> {
-    sender: LedSender<'a>,
-    options: Cell<OptionsBitmap>,
-    on_level: Cell<Nullable<u8>>,
-    current_level: Cell<u8>,
-    startup_current_level: Cell<Nullable<u8>>,
-    remaining_time: Cell<u16>,
-}
-
-impl<'a> LevelControlHandler<'a> {
-    pub fn new(sender: LedSender<'a>) -> Self {
-        Self {
-            sender,
-            options: Cell::new(OptionsBitmap::from_bits(OptionsBitmap::EXECUTE_IF_OFF.bits() as u8)
-                .unwrap()),
-            on_level: Cell::new(Nullable::some(42)),
-            current_level: Cell::new(1),
-            startup_current_level: Cell::new(Nullable::some(73)),
-            remaining_time: Cell::new(0),
-        }
-    }
-}
-
-impl<'a> LevelControlHooks for LevelControlHandler<'a> {
+impl<'a> LevelControlHooks for LedHandler<'a> {
     const MIN_LEVEL: u8 = 1;
 
     const MAX_LEVEL: u8 = 254;

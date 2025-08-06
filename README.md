@@ -54,45 +54,12 @@ This UML diagram outlines how the business logic for a cluster can be separated 
 This diagram assumes that SDK consumers are also managing the attributes.
 See next section for more information.
 
-```plantuml
-@startuml
-
-package rs-matter.src.clusters {
-	interface on_off::ClusterHandler {
-	  on_off(&self, _ctx: &ReadContext<'_>) -> Result<bool, Error>
-	  handle_off(&self, ctx: &InvokeContext<'_>) -> Result<(), Error>
-	  handle_on(&self, ctx: &InvokeContext<'_>) -> Result<(), Error>
-	  handle_toggle(&self, ctx: &InvokeContext<'_>) -> Result<(), Error>
-	}
-	
-	class OnOffCluster {
-	
-	}
-	
-	interface OnOffHook {
-		raw_get_on_off(&self) -> bool
-		raw_set_on_off(&self, on: bool) -> Result<(), Error>
-		set_on(&self, _ctx: &InvokeContext<'_>, on: bool) -> Result<(), Error>
-	}
-}
-
-package "consumer business logic" {
-	class OnOffHandler {
-		on: bool
-	}
-}
-
-OnOffCluster <|.. on_off::ClusterHandler
-OnOffHandler <|.. OnOffHook
-OnOffCluster *-- OnOffHandler
-
-@enduml
-```
+![](assets/simple_cluster_impl.svg)
 
 ### Memory location
 
 It could be argued that it would be simpler for users to have cluster attributes stored within the cluster implementation.
-This allows for the cluster implementation to also manage persistence as required by the spec.
+This allows for the cluster implementation to also manage persistence as required by the spec and simplify the user implementation.
 Coupling this with a way for the user to read these states whenever required would make for a very simple design.
 
 However, following on from learnings in implementing the c++ SDK, there will be cases where it would be preferred for the user to manage this memory.
@@ -102,6 +69,12 @@ Hence, it may be good to explore patterns where users can take control of these 
 One pattern is to add raw accessor methods to the hook traits, allowing the SDK cluster impl to manipulate this information as required.
 If we only allow for interior mutability of the hook traits, all hook traits can be implemented for one "driver" struct that stores all the states in one place.
 This can then be passed by reference the the cluster structs.
+
+As of the commit where this update was made, the OnOff and LevelControl clusters in this example demonstrate the latter pattern where all the attributes are managed by the SDK consumer.
+The ColorControl cluster follows the former pattern where the attributes are managed by the Cluster impl.
+It can be noted that the former pattern makes for a much simpler API for the user, however, the methods added by the latter pattern, although numerous, are not complex.
+
+`rs-matter` can adopt either the latter pattern or have a hybrid of both. As mentioned earlier, there will always be the need for a way to offload attribute storage to the user.
 
 
 ### Base and derived clusters

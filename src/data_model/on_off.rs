@@ -20,7 +20,7 @@
 //! While this cluster is not necessary for the operation of `rs-matter`, this
 //! implementation is useful in examples and tests.
 
-
+use log::info;
 use rs_matter::error::{Error, ErrorCode};
 use rs_matter::with;
 
@@ -30,14 +30,14 @@ pub use crate::data_model::clusters::on_off::*;
 
 /// A sample implementation of a handler for the On/Off Matter cluster.
 #[derive(Clone)]
-pub struct OnOffCluster<T> where T: OnOffHooks {
+pub struct OnOffCluster<'a, T: OnOffHooks>  {
     dataver: Dataver,
-    handler: T,
+    handler: &'a T,
 }
 
-impl<T> OnOffCluster<T> where T: OnOffHooks {
+impl<'a, T: OnOffHooks> OnOffCluster<'a, T> {
     /// Creates a new instance of `OnOffHandler` with the given `Dataver`.
-    pub const fn new(dataver: Dataver, handler: T) -> Self {
+    pub const fn new(dataver: Dataver, handler: &'a T) -> Self {
         Self {
             dataver,
             handler,
@@ -66,7 +66,7 @@ impl<T> OnOffCluster<T> where T: OnOffHooks {
     }
 }
 
-impl<T> ClusterAsyncHandler for OnOffCluster<T> where T: OnOffHooks {
+impl<'a, T: OnOffHooks> ClusterAsyncHandler for OnOffCluster<'a, T> {
     const CLUSTER: Cluster<'static> = FULL_CLUSTER
         .with_revision(1)
         .with_attrs(with!(required))
@@ -81,18 +81,22 @@ impl<T> ClusterAsyncHandler for OnOffCluster<T> where T: OnOffHooks {
     }
 
     async fn on_off(&self, _ctx: &ReadContext<'_>) -> Result<bool, Error> {
+        info!("OnOff: Called on_off()");
         Ok(self.handler.raw_get_on_off())
     }
 
     async fn handle_off(&self, ctx: &InvokeContext<'_>) -> Result<(), Error> {
+        info!("OnOff: Called handle_off()");
         self.set(ctx, false)
     }
 
     async fn handle_on(&self, ctx: &InvokeContext<'_>) -> Result<(), Error> {
+        info!("OnOff: Called handle_on()");
         self.set(ctx, true)
     }
 
     async fn handle_toggle(&self, ctx: &InvokeContext<'_>) -> Result<(), Error> {
+        info!("OnOff: Called handle_toggle()");
         self.set(ctx, !self.handler.raw_get_on_off())
     }
 
@@ -101,10 +105,12 @@ impl<T> ClusterAsyncHandler for OnOffCluster<T> where T: OnOffHooks {
         _ctx: &InvokeContext<'_>,
         _request: OffWithEffectRequest<'_>,
     ) -> Result<(), Error> {
+        info!("OnOff: Called handle_off_with_effect()");
         Err(ErrorCode::InvalidCommand.into())
     }
 
     async fn handle_on_with_recall_global_scene(&self, _ctx: &InvokeContext<'_>) -> Result<(), Error> {
+        info!("OnOff: Called handle_on_with_recall_global_scene()");
         Err(ErrorCode::InvalidCommand.into())
     }
 
@@ -113,6 +119,7 @@ impl<T> ClusterAsyncHandler for OnOffCluster<T> where T: OnOffHooks {
         _ctx: &InvokeContext<'_>,
         _request: OnWithTimedOffRequest<'_>,
     ) -> Result<(), Error> {
+        info!("OnOff: Called handle_on_with_timed_off()");
         Err(ErrorCode::InvalidCommand.into())
     }
 }

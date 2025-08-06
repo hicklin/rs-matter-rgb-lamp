@@ -46,7 +46,7 @@ use matter_rgb_lamp::data_model::on_off::{self, ClusterAsyncHandler as _};
 use matter_rgb_lamp::data_model::level_control::{self, ClusterHandler as _};
 use matter_rgb_lamp::data_model::color_control::{self, ClusterHandler as _, ColorControlHandler};
 
-use matter_rgb_lamp::led::led_handler::{OnOffHandler, LevelControlHandler};
+use matter_rgb_lamp::led::led_handler::LedHandler;
 
 extern crate alloc;
 
@@ -106,8 +106,7 @@ async fn main(_s: Spawner) {
     let channel = Channel::<CriticalSectionRawMutex, led::ControlMessage, 4>::new();
     let sender = channel.sender();
 
-    let on_off_handler = OnOffHandler::new(sender.clone());
-    let level_control_handler = LevelControlHandler::new(sender.clone());
+    let led_handler = LedHandler::new(sender.clone());
     let color_control_handler = ColorControlHandler::new(sender);
 
     // Chain our endpoint clusters
@@ -116,16 +115,16 @@ async fn main(_s: Spawner) {
         .chain(
             EpClMatcher::new(
                 Some(LIGHT_ENDPOINT_ID),
-                Some(on_off::OnOffCluster::<OnOffHandler>::CLUSTER.id),
+                Some(on_off::OnOffCluster::<LedHandler>::CLUSTER.id),
             ),
-            on_off::OnOffCluster::new(Dataver::new_rand(stack.matter().rand()), on_off_handler).adapt(),
+            on_off::OnOffCluster::new(Dataver::new_rand(stack.matter().rand()), &led_handler).adapt(),
         )
         .chain(
             EpClMatcher::new(
                 Some(LIGHT_ENDPOINT_ID),
-                Some(level_control::LevelControlCluster::<LevelControlHandler>::CLUSTER.id),
+                Some(level_control::LevelControlCluster::<LedHandler>::CLUSTER.id),
             ),
-            Async(level_control::LevelControlCluster::new(Dataver::new_rand(stack.matter().rand()), level_control_handler).adapt()),
+            Async(level_control::LevelControlCluster::new(Dataver::new_rand(stack.matter().rand()), &led_handler).adapt()),
         )
         .chain(
             EpClMatcher::new(
@@ -223,8 +222,8 @@ const NODE: Node = Node {
             device_types: devices!(DEV_TYPE_ENHANCED_COLOR_LIGHT),
             clusters: clusters!(
                 desc::DescHandler::CLUSTER,
-                on_off::OnOffCluster::<OnOffHandler>::CLUSTER,
-                level_control::LevelControlCluster::<LevelControlHandler>::CLUSTER
+                on_off::OnOffCluster::<LedHandler>::CLUSTER,
+                level_control::LevelControlCluster::<LedHandler>::CLUSTER
                 color_control::ColorControlCluster::<ColorControlHandler>::CLUSTER
             ),
         },
