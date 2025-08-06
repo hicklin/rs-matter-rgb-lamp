@@ -1,4 +1,3 @@
-use core::cell::Cell;
 use log::{warn, info};
 use rs_matter::data_model::objects::{Dataver, ReadContext, WriteContext, InvokeContext};
 use rs_matter::tlv::Nullable;
@@ -10,11 +9,6 @@ use rs_matter::error::{Error, ErrorCode};
 
 pub struct LevelControlCluster<T: LevelControlHooks> {
     dataver: Dataver,
-    options: OptionsBitmap,
-    on_level: Cell<Nullable<u8>>,
-    current_level: Cell<u8>,
-    startup_current_level: Cell<Nullable<u8>>,
-    remaining_time: Cell<u16>,
     handler: T,
 }
 
@@ -23,12 +17,6 @@ impl<T: LevelControlHooks> LevelControlCluster<T> {
     pub fn new(dataver: Dataver, handler: T) -> Self {
         Self {
             dataver,
-            options: OptionsBitmap::from_bits(level_control::OptionsBitmap::EXECUTE_IF_OFF.bits() as u8)
-                .unwrap(),
-            on_level: Cell::new(Nullable::some(42)),
-            current_level: Cell::new(T::MIN_LEVEL),
-            startup_current_level: Cell::new(Nullable::some(73)),
-            remaining_time: Cell::new(0),
             handler,
         }
     }
@@ -41,7 +29,7 @@ impl<T: LevelControlHooks> LevelControlCluster<T> {
     // Processes the options of commands 'without On/Off'.
     // Returns true if execution of the command should continue, false otherwise.
     fn should_continue(&self, options_mask: OptionsBitmap, options_override: OptionsBitmap) -> bool {
-        let temporary_options = (options_mask & options_override) | self.options;
+        let temporary_options = (options_mask & options_override) | self.handler.raw_get_options();
 
         temporary_options.contains(level_control::OptionsBitmap::EXECUTE_IF_OFF)
     }
@@ -62,12 +50,12 @@ impl<T: LevelControlHooks> LevelControlCluster<T> {
         match transition_time {
             None | Some(0) => {
                 self.handler.set_level(ctx, level)?;
-                self.current_level.set(level);
+                self.handler.raw_set_current_level(level)?;
             }
             Some(_t_time) => {
                 warn!("Transitioning is not implemented. Issuing a step change.");
                 self.handler.set_level(ctx, level)?;
-                self.current_level.set(level);
+                self.handler.raw_set_current_level(level)?;
             }
         }
 
@@ -79,7 +67,7 @@ impl<T: LevelControlHooks> ClusterHandler for LevelControlCluster<T> {
     #[doc = "The cluster-metadata corresponding to this handler trait."]
     const CLUSTER: rs_matter::data_model::objects::Cluster<'static> = FULL_CLUSTER
         .with_revision(7)
-        .with_features(level_control::Feature::LIGHTING.bits() + level_control::Feature::ON_OFF.bits())
+        .with_features(level_control::Feature::LIGHTING.bits() | level_control::Feature::ON_OFF.bits())
         .with_attrs(with!(
             required;
             AttributeId::CurrentLevel 
@@ -114,7 +102,7 @@ impl<T: LevelControlHooks> ClusterHandler for LevelControlCluster<T> {
         _ctx: &ReadContext<'_>,
     ) -> Result<Nullable<u8>, Error> {
         info!("current_level called!");
-        Ok(Nullable::some(self.current_level.get()))
+        Ok(Nullable::some(self.handler.raw_get_current_level()))
     }
 
     fn options(
@@ -122,7 +110,7 @@ impl<T: LevelControlHooks> ClusterHandler for LevelControlCluster<T> {
         _ctx: &ReadContext<'_>,
     ) -> Result<OptionsBitmap, Error> {
         info!("options called!");
-        Ok(self.options)
+        Ok(self.handler.raw_get_options())
     }
 
     fn on_level(
@@ -130,19 +118,16 @@ impl<T: LevelControlHooks> ClusterHandler for LevelControlCluster<T> {
         _ctx: &ReadContext<'_>,
     ) -> Result<Nullable<u8>, Error> {
         info!("on_level called!");
-        let val = self.on_level.take();
-        self.on_level.set(val.clone());
-
-        Ok(val)
+        Ok(self.handler.raw_get_on_level())
     }
 
     fn set_options(
         &self,
         _ctx: &WriteContext<'_>,
-        _value: OptionsBitmap,
+        value: OptionsBitmap,
     ) -> Result<(), Error> {
-        warn!("set_options is not yet implemented.");
-        Ok(())
+        info!("set_options called");
+        self.handler.raw_set_options(value)
     }
 
     fn set_on_level(
@@ -151,7 +136,7 @@ impl<T: LevelControlHooks> ClusterHandler for LevelControlCluster<T> {
         value: Nullable<u8>,
     ) -> Result<(), Error> {
         info!("set_on_level called");
-        self.on_level.set(value);
+        self.handler.raw_set_on_level(value)?;
         self.dataver_changed();
         ctx.notify_changed();
         Ok(())
@@ -159,7 +144,7 @@ impl<T: LevelControlHooks> ClusterHandler for LevelControlCluster<T> {
 
     fn remaining_time(&self, _ctx: &ReadContext<'_>) -> Result<u16,rs_matter::error::Error> {
         info!("remaining_time called!");
-        Ok(self.remaining_time.get())
+        Ok(self.handler.raw_get_remaining_time())
     }
 
     fn max_level(&self, _ctx: &ReadContext<'_>) -> Result<u8,rs_matter::error::Error> {
@@ -174,15 +159,12 @@ impl<T: LevelControlHooks> ClusterHandler for LevelControlCluster<T> {
 
     fn start_up_current_level(&self, _ctx: &rs_matter::data_model::objects::ReadContext<'_>) -> Result<rs_matter::tlv::Nullable<u8> ,rs_matter::error::Error> {
         info!("start_up_current_level called!");
-        let val = self.startup_current_level.take();
-        self.startup_current_level.set(val.clone());
-
-        Ok(val)
+        Ok(self.handler.raw_get_startup_current_level())
     }
 
     fn set_start_up_current_level(&self, ctx: &WriteContext<'_>, value:rs_matter::tlv::Nullable<u8>) -> Result<(),rs_matter::error::Error> {
         info!("set_start_up_current_level called!");
-        self.startup_current_level.set(value);
+        self.handler.raw_set_startup_current_level(value)?;
         self.dataver_changed();
         ctx.notify_changed();
         Ok(())
@@ -305,31 +287,24 @@ pub trait LevelControlHooks {
     const MIN_LEVEL: u8;
     const MAX_LEVEL: u8;
 
+    // Raw accessors
+    //  These methods should not perform any checks.
+    //  They should simply set of get values.
+    fn raw_get_options(&self) -> OptionsBitmap;
+    fn raw_set_options(&self, value: OptionsBitmap) -> Result<(), Error>;
+    fn raw_get_on_level(&self) -> Nullable<u8>;
+    fn raw_set_on_level(&self, value: Nullable<u8>) -> Result<(), Error>;
+    fn raw_get_current_level(&self) -> u8;
+    fn raw_set_current_level(&self, value: u8) -> Result<(), Error>;
+    fn raw_get_startup_current_level(&self) -> Nullable<u8>;
+    fn raw_set_startup_current_level(&self, value: Nullable<u8>) -> Result<(), Error>;
+    fn raw_get_remaining_time(&self) -> u16;
+    fn raw_set_remaining_time(&self, value: u16) -> Result<(), Error>;
+
+    // Implements the business logic for setting the level.
+    // Do not update attribute states.
     fn set_level(&self, ctx: &InvokeContext<'_>, level: u8) -> Result<(), Error>;
 }
 
 // Todo: Move in a separate file
 
-use crate::led::led::{LedSender, ControlMessage};
-
-pub struct LevelControlHandler<'a> {
-    sender: LedSender<'a>,
-}
-
-impl<'a> LevelControlHandler<'a> {
-    pub fn new(sender: LedSender<'a>) -> Self {
-        Self {
-            sender,
-        }
-    }
-}
-
-impl<'a> LevelControlHooks for LevelControlHandler<'a> {
-    const MIN_LEVEL: u8 = 1;
-
-    const MAX_LEVEL: u8 = 254;
-    
-    fn set_level(&self, _ctx: &InvokeContext<'_>, level: u8) -> Result<(), Error> {
-        self.sender.try_send(ControlMessage::SetBrightness(level)).map_err(|_| ErrorCode::Busy.into())
-    }
-}

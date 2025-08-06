@@ -42,9 +42,11 @@ use rs_matter_embassy::wireless::esp::EspWifiDriver;
 use rs_matter_embassy::wireless::{EmbassyWifi, EmbassyWifiMatterStack};
 
 use matter_rgb_lamp::led::led;
-use matter_rgb_lamp::data_model::on_off::{self, ClusterAsyncHandler as _, OnOffHandler,};
-use matter_rgb_lamp::data_model::level_control::{self, ClusterHandler as _, LevelControlHandler};
+use matter_rgb_lamp::data_model::on_off::{self, ClusterAsyncHandler as _};
+use matter_rgb_lamp::data_model::level_control::{self, ClusterHandler as _};
 use matter_rgb_lamp::data_model::color_control::{self, ClusterHandler as _, ColorControlHandler};
+
+use matter_rgb_lamp::led::led_handler::{OnOffHandler, LevelControlHandler};
 
 extern crate alloc;
 

@@ -77,7 +77,7 @@ impl<T: ColorControlHooks> ClusterHandler for ColorControlCluster<T> {
     #[doc = "The cluster-metadata corresponding to this handler trait."]
     const CLUSTER:Cluster<'static> = FULL_CLUSTER
         .with_revision(7)
-        .with_features(Feature::XY.bits() + Feature::COLOR_TEMPERATURE.bits())
+        .with_features(Feature::XY.bits() | Feature::COLOR_TEMPERATURE.bits())
         .with_attrs(with!(
             required;
             AttributeId::CurrentX
@@ -227,7 +227,7 @@ impl<T: ColorControlHooks> ClusterHandler for ColorControlCluster<T> {
 
     fn color_capabilities(&self, _ctx: &ReadContext<'_>) -> Result<u16, Error>  {
         info!("ColorControl: Called color_capabilities()");
-        Ok(ColorCapabilities::XY_ATTRIBUTES_SUPPORTED.bits() + ColorCapabilities::COLOR_TEMPERATURE_SUPPORTED.bits())
+        Ok(ColorCapabilities::XY_ATTRIBUTES_SUPPORTED.bits() | ColorCapabilities::COLOR_TEMPERATURE_SUPPORTED.bits())
     }
 
     fn set_options(&self, _ctx: &WriteContext<'_>, _value:u8) -> Result<(), Error>  {
