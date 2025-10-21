@@ -1,10 +1,10 @@
 use core::cell::Cell;
 use palette::white_point::D65;
 
-use rs_matter::data_model::objects::{Dataver, ReadContext, WriteContext, InvokeContext, Cluster};
-use rs_matter::with;
-use rs_matter::error::{Error, ErrorCode};
-use rs_matter::tlv::Nullable;
+use rs_matter_embassy::matter::dm::{Dataver, ReadContext, WriteContext, InvokeContext, Cluster};
+use rs_matter_embassy::matter::with;
+use rs_matter_embassy::matter::error::{Error, ErrorCode};
+use rs_matter_embassy::matter::tlv::Nullable;
 
 use crate::data_model::clusters::color_control::*;
 pub use crate::data_model::clusters::color_control::ClusterHandler;
@@ -120,159 +120,159 @@ impl<T: ColorControlHooks> ClusterHandler for ColorControlCluster<T> {
         self.dataver.changed();
     }
 
-    fn current_x(&self, _ctx: &ReadContext<'_>) -> Result<u16, Error> {
+    fn current_x(&self, _ctx: impl ReadContext) -> Result<u16, Error> {
         info!("ColorControl: Called current_x()");
         Ok(self.current_x.get())
     }
 
-    fn current_y(&self, _ctx: &ReadContext<'_>) -> Result<u16, Error> {
+    fn current_y(&self, _ctx: impl ReadContext) -> Result<u16, Error> {
         info!("ColorControl: Called current_y()");
         Ok(self.current_y.get())
     }
 
-    fn primary_1_x(&self, _ctx: &ReadContext<'_>) -> Result<u16, Error> {
+    fn primary_1_x(&self, _ctx: impl ReadContext) -> Result<u16, Error> {
         info!("ColorControl: Called primary_1_x()");
         Ok(self.primary_1_x)
     }
 
-    fn primary_1_y(&self, _ctx: &ReadContext<'_>) -> Result<u16, Error> {
+    fn primary_1_y(&self, _ctx: impl ReadContext) -> Result<u16, Error> {
         info!("ColorControl: Called primary_1_y()");
         Ok(self.primary_1_y)
     }
 
-    fn primary_1_intensity(&self, _ctx: &ReadContext<'_>) -> Result<Nullable<u8> , Error> {
+    fn primary_1_intensity(&self, _ctx: impl ReadContext) -> Result<Nullable<u8> , Error> {
         info!("ColorControl: Called primary_1_intensity()");
         Ok(Nullable::some(self.primary_1_intensity))
     }
 
-    fn primary_2_x(&self, _ctx: &ReadContext<'_>) -> Result<u16, Error> {
+    fn primary_2_x(&self, _ctx: impl ReadContext) -> Result<u16, Error> {
         info!("ColorControl: Called primary_2_x()");
         Ok(self.primary_2_x)
     }
 
-    fn primary_2_y(&self, _ctx: &ReadContext<'_>) -> Result<u16, Error> {
+    fn primary_2_y(&self, _ctx: impl ReadContext) -> Result<u16, Error> {
         info!("ColorControl: Called primary_2_y()");
         Ok(self.primary_2_y)
     }
 
-    fn primary_2_intensity(&self, _ctx: &ReadContext<'_>) -> Result<Nullable<u8> , Error> {
+    fn primary_2_intensity(&self, _ctx: impl ReadContext) -> Result<Nullable<u8> , Error> {
         info!("ColorControl: Called primary_2_intensity()");
         Ok(Nullable::some(self.primary_2_intensity))
     }
 
-    fn primary_3_x(&self, _ctx: &ReadContext<'_>) -> Result<u16, Error> {
+    fn primary_3_x(&self, _ctx: impl ReadContext) -> Result<u16, Error> {
         info!("ColorControl: Called primary_3_x()");
         Ok(self.primary_3_x)
     }
 
-    fn primary_3_y(&self, _ctx: &ReadContext<'_>) -> Result<u16, Error> {
+    fn primary_3_y(&self, _ctx: impl ReadContext) -> Result<u16, Error> {
         info!("ColorControl: Called primary_3_y()");
         Ok(self.primary_3_y)
     }
 
-    fn primary_3_intensity(&self, _ctx: &ReadContext<'_>) -> Result<Nullable<u8> , Error> {
+    fn primary_3_intensity(&self, _ctx: impl ReadContext) -> Result<Nullable<u8> , Error> {
         info!("ColorControl: Called primary_3_intensity()");
         Ok(Nullable::some(self.primary_3_intensity))
     }
 
-    fn remaining_time(&self, _ctx: &ReadContext<'_>) -> Result<u16, Error> {
+    fn remaining_time(&self, _ctx: impl ReadContext) -> Result<u16, Error> {
         info!("ColorControl: Called remaining_time()");
         Ok(self.remaining_time)
     }
 
-    fn color_temperature_mireds(&self, _ctx: &ReadContext<'_>) -> Result<u16, Error> {
+    fn color_temperature_mireds(&self, _ctx: impl ReadContext) -> Result<u16, Error> {
         info!("ColorControl: Called color_temperature_mireds()");
         Ok(self.color_temperature_mireds)
     }
 
-    fn color_temp_physical_max_mireds(&self, _ctx: &ReadContext<'_>) -> Result<u16, Error> {
+    fn color_temp_physical_max_mireds(&self, _ctx: impl ReadContext) -> Result<u16, Error> {
         info!("ColorControl: Called color_temp_physical_max_mireds()");
         Ok(self.color_temp_physical_max_mireds)
     }
 
-    fn color_temp_physical_min_mireds(&self, _ctx: &ReadContext<'_>) -> Result<u16, Error> {
+    fn color_temp_physical_min_mireds(&self, _ctx: impl ReadContext) -> Result<u16, Error> {
         info!("ColorControl: Called color_temp_physical_min_mireds()");
         Ok(self.color_temp_physical_min_mireds)
     }
 
-    fn couple_color_temp_to_level_min_mireds(&self, _ctx: &ReadContext<'_>) -> Result<u16, Error> {
+    fn couple_color_temp_to_level_min_mireds(&self, _ctx: impl ReadContext) -> Result<u16, Error> {
         info!("ColorControl: Called couple_color_temp_to_level_min_mireds()");
         Ok(self.couple_color_temp_to_level_min_mireds)
     }
 
-    fn start_up_color_temperature_mireds(&self, _ctx: &ReadContext<'_>) -> Result<Nullable<u16> , Error> {
+    fn start_up_color_temperature_mireds(&self, _ctx: impl ReadContext) -> Result<Nullable<u16> , Error> {
         info!("ColorControl: Called start_up_color_temperature_mireds()");
         Ok(Nullable::some(self.start_up_color_temperature_mireds))
     }
 
-    fn color_mode(&self, _ctx: &ReadContext<'_>) -> Result<u8, Error>  {
+    fn color_mode(&self, _ctx: impl ReadContext) -> Result<u8, Error>  {
         info!("ColorControl: Called color_mode()");
         Ok(self.color_mode as u8)
     }
 
-    fn options(&self, _ctx: &ReadContext<'_>) -> Result<u8, Error>  {
+    fn options(&self, _ctx: impl ReadContext) -> Result<u8, Error>  {
         info!("ColorControl: Called options()");
         Ok(self.options.bits() as u8)
     }
 
-    fn number_of_primaries(&self, _ctx: &ReadContext<'_>) -> Result<Nullable<u8> , Error>  {
+    fn number_of_primaries(&self, _ctx: impl ReadContext) -> Result<Nullable<u8> , Error>  {
         info!("ColorControl: Called number_of_primaries()");
         Ok(Nullable::some(self.number_of_primes))
     }
 
-    fn enhanced_color_mode(&self, _ctx: &ReadContext<'_>) -> Result<u8, Error>  {
+    fn enhanced_color_mode(&self, _ctx: impl ReadContext) -> Result<u8, Error>  {
         info!("ColorControl: Called enhanced_color_mode()");
         Ok(1) // todo needs fixing when enhanced color mode bitmap is included
     }
 
-    fn color_capabilities(&self, _ctx: &ReadContext<'_>) -> Result<u16, Error>  {
+    fn color_capabilities(&self, _ctx: impl ReadContext) -> Result<u16, Error>  {
         info!("ColorControl: Called color_capabilities()");
         Ok(ColorCapabilities::XY_ATTRIBUTES_SUPPORTED.bits() | ColorCapabilities::COLOR_TEMPERATURE_SUPPORTED.bits())
     }
 
-    fn set_options(&self, _ctx: &WriteContext<'_>, _value:u8) -> Result<(), Error>  {
+    fn set_options(&self, _ctx: impl WriteContext, _value:u8) -> Result<(), Error>  {
         info!("ColorControl: Called set_options()");
         // todo is `&self` correct? We should be able to modify self if we want to set a value. 
         warn!("Not yet implemented. Doing nothing.");
         Ok(())
     }
 
-    fn handle_move_to_hue(&self, _ctx: &InvokeContext<'_> , _request:MoveToHueRequest<'_> ,) -> Result<(), Error>  {
+    fn handle_move_to_hue(&self, _ctx: impl InvokeContext , _request:MoveToHueRequest<'_> ,) -> Result<(), Error>  {
         info!("ColorControl: Called handle_move_to_hue()");
         Err(ErrorCode::InvalidCommand.into())
     }
 
-    fn handle_move_hue(&self, _ctx: &InvokeContext<'_> , _request:MoveHueRequest<'_> ,) -> Result<(), Error>  {
+    fn handle_move_hue(&self, _ctx: impl InvokeContext , _request:MoveHueRequest<'_> ,) -> Result<(), Error>  {
         info!("ColorControl: Called handle_move_hue()");
         Err(ErrorCode::InvalidCommand.into())
     }
 
-    fn handle_step_hue(&self, _ctx: &InvokeContext<'_> , _request:StepHueRequest<'_> ,) -> Result<(), Error>  {
+    fn handle_step_hue(&self, _ctx: impl InvokeContext , _request:StepHueRequest<'_> ,) -> Result<(), Error>  {
         info!("ColorControl: Called handle_step_hue()");
         Err(ErrorCode::InvalidCommand.into())
     }
 
-    fn handle_move_to_saturation(&self, _ctx: &InvokeContext<'_> , _request:MoveToSaturationRequest<'_> ,) -> Result<(), Error>  {
+    fn handle_move_to_saturation(&self, _ctx: impl InvokeContext , _request:MoveToSaturationRequest<'_> ,) -> Result<(), Error>  {
         info!("ColorControl: Called handle_move_to_saturation()");
         Err(ErrorCode::InvalidCommand.into())
     }
 
-    fn handle_move_saturation(&self, _ctx: &InvokeContext<'_> , _request:MoveSaturationRequest<'_> ,) -> Result<(), Error>  {
+    fn handle_move_saturation(&self, _ctx: impl InvokeContext , _request:MoveSaturationRequest<'_> ,) -> Result<(), Error>  {
         info!("ColorControl: Called handle_move_saturation()");
         Err(ErrorCode::InvalidCommand.into())
     }
 
-    fn handle_step_saturation(&self, _ctx: &InvokeContext<'_> , _request:StepSaturationRequest<'_> ,) -> Result<(), Error>  {
+    fn handle_step_saturation(&self, _ctx: impl InvokeContext , _request:StepSaturationRequest<'_> ,) -> Result<(), Error>  {
         info!("ColorControl: Called handle_step_saturation()");
         Err(ErrorCode::InvalidCommand.into())
     }
 
-    fn handle_move_to_hue_and_saturation(&self, _ctx: &InvokeContext<'_> , _request:MoveToHueAndSaturationRequest<'_> ,) -> Result<(), Error>  {
+    fn handle_move_to_hue_and_saturation(&self, _ctx: impl InvokeContext , _request:MoveToHueAndSaturationRequest<'_> ,) -> Result<(), Error>  {
         info!("ColorControl: Called handle_move_to_hue_and_saturation()");
         Err(ErrorCode::InvalidCommand.into())
     }
 
-    fn handle_move_to_color(&self, _ctx: &InvokeContext<'_> , request:MoveToColorRequest<'_> ,) -> Result<(), Error>  {
+    fn handle_move_to_color(&self, _ctx: impl InvokeContext , request:MoveToColorRequest<'_> ,) -> Result<(), Error>  {
         info!("ColorControl: Called handle_move_to_color()");
         // todo process options
         self.handler.set_color(request.color_x()?, request.color_y()?)?;
@@ -282,62 +282,62 @@ impl<T: ColorControlHooks> ClusterHandler for ColorControlCluster<T> {
         Ok(())
     }
 
-    fn handle_move_color(&self, _ctx: &InvokeContext<'_> , _request:MoveColorRequest<'_> ,) -> Result<(), Error>  {
+    fn handle_move_color(&self, _ctx: impl InvokeContext , _request:MoveColorRequest<'_> ,) -> Result<(), Error>  {
         info!("ColorControl: Called handle_move_color()");
         warn!("Not yet implemented. Doing nothing.");
         Ok(())
     }
 
-    fn handle_step_color(&self, _ctx: &InvokeContext<'_> , _request:StepColorRequest<'_> ,) -> Result<(), Error>  {
+    fn handle_step_color(&self, _ctx: impl InvokeContext , _request:StepColorRequest<'_> ,) -> Result<(), Error>  {
         info!("ColorControl: Called handle_step_color()");
         warn!("Not yet implemented. Doing nothing.");
         Ok(())
     }
 
-    fn handle_move_to_color_temperature(&self, _ctx: &InvokeContext<'_> , _request:MoveToColorTemperatureRequest<'_> ,) -> Result<(), Error>  {
+    fn handle_move_to_color_temperature(&self, _ctx: impl InvokeContext , _request:MoveToColorTemperatureRequest<'_> ,) -> Result<(), Error>  {
         info!("ColorControl: Called handle_move_to_color_temperature()");
         warn!("Not yet implemented. Doing nothing.");
         Ok(())
     }
 
-    fn handle_enhanced_move_to_hue(&self, _ctx: &InvokeContext<'_> , _request:EnhancedMoveToHueRequest<'_> ,) -> Result<(), Error>  {
+    fn handle_enhanced_move_to_hue(&self, _ctx: impl InvokeContext , _request:EnhancedMoveToHueRequest<'_> ,) -> Result<(), Error>  {
         info!("ColorControl: Called handle_enhanced_move_to_hue()");
         Err(ErrorCode::InvalidCommand.into())
     }
 
-    fn handle_enhanced_move_hue(&self, _ctx: &InvokeContext<'_> , _request:EnhancedMoveHueRequest<'_> ,) -> Result<(), Error>  {
+    fn handle_enhanced_move_hue(&self, _ctx: impl InvokeContext , _request:EnhancedMoveHueRequest<'_> ,) -> Result<(), Error>  {
         info!("ColorControl: Called handle_enhanced_move_hue()");
         Err(ErrorCode::InvalidCommand.into())
     }
 
-    fn handle_enhanced_step_hue(&self, _ctx: &InvokeContext<'_> , _request:EnhancedStepHueRequest<'_> ,) -> Result<(), Error>  {
+    fn handle_enhanced_step_hue(&self, _ctx: impl InvokeContext , _request:EnhancedStepHueRequest<'_> ,) -> Result<(), Error>  {
         info!("ColorControl: Called handle_enhanced_step_hue()");
         Err(ErrorCode::InvalidCommand.into())
     }
 
-    fn handle_enhanced_move_to_hue_and_saturation(&self, _ctx: &InvokeContext<'_> , _request:EnhancedMoveToHueAndSaturationRequest<'_> ,) -> Result<(), Error>  {
+    fn handle_enhanced_move_to_hue_and_saturation(&self, _ctx: impl InvokeContext , _request:EnhancedMoveToHueAndSaturationRequest<'_> ,) -> Result<(), Error>  {
         info!("ColorControl: Called handle_enhanced_move_to_hue_and_saturation()");
         Err(ErrorCode::InvalidCommand.into())
     }
 
-    fn handle_color_loop_set(&self, _ctx: &InvokeContext<'_> , _request:ColorLoopSetRequest<'_> ,) -> Result<(), Error>  {
+    fn handle_color_loop_set(&self, _ctx: impl InvokeContext , _request:ColorLoopSetRequest<'_> ,) -> Result<(), Error>  {
         info!("ColorControl: Called handle_color_loop_set()");
         Err(ErrorCode::InvalidCommand.into())
     }
 
-    fn handle_stop_move_step(&self, _ctx: &InvokeContext<'_> , _request:StopMoveStepRequest<'_> ,) -> Result<(), Error>  {
+    fn handle_stop_move_step(&self, _ctx: impl InvokeContext , _request:StopMoveStepRequest<'_> ,) -> Result<(), Error>  {
         info!("ColorControl: Called handle_stop_move_step()");
         warn!("Not yet implemented. Doing nothing.");
         Ok(())
     }
 
-    fn handle_move_color_temperature(&self, _ctx: &InvokeContext<'_> , _request:MoveColorTemperatureRequest<'_> ,) -> Result<(), Error>  {
+    fn handle_move_color_temperature(&self, _ctx: impl InvokeContext , _request:MoveColorTemperatureRequest<'_> ,) -> Result<(), Error>  {
         info!("ColorControl: Called handle_move_color_temperature()");
         warn!("Not yet implemented. Doing nothing.");
         Ok(())
     }
 
-    fn handle_step_color_temperature(&self, _ctx: &InvokeContext<'_> , _request:StepColorTemperatureRequest<'_> ,) -> Result<(), Error>  {
+    fn handle_step_color_temperature(&self, _ctx: impl InvokeContext , _request:StepColorTemperatureRequest<'_> ,) -> Result<(), Error>  {
         info!("ColorControl: Called handle_step_color_temperature()");
         warn!("Not yet implemented. Doing nothing.");
         Ok(())

@@ -21,10 +21,10 @@
 //! implementation is useful in examples and tests.
 
 use log::info;
-use rs_matter::error::{Error, ErrorCode};
-use rs_matter::with;
+use rs_matter_embassy::matter::error::{Error, ErrorCode};
+use rs_matter_embassy::matter::with;
 
-use rs_matter::data_model::objects::{Cluster, Dataver, InvokeContext, ReadContext};
+use rs_matter_embassy::matter::dm::{Cluster, Dataver, InvokeContext, ReadContext};
 
 pub use crate::data_model::clusters::on_off::*;
 
@@ -50,13 +50,13 @@ impl<'a, T: OnOffHooks> OnOffCluster<'a, T> {
     }
 
     /// Set the On/Off attribute to the given value and notify potential subscribers.
-    pub fn set(&self, ctx: &InvokeContext<'_>, on: bool) -> Result<(), Error> {
+    pub fn set(&self, ctx: impl InvokeContext, on: bool) -> Result<(), Error> {
         if self.handler.raw_get_on_off() != on {
             // todo If there is a LevelControl cluster on the same endpoint, we should
             // set the level to on_level when turning on the light.
 
             // execute the business logic
-            self.handler.set_on(ctx, on)?;
+            self.handler.set_on(&ctx, on)?;
 
             self.handler.raw_set_on_off(on)?;
             self.dataver.changed();
@@ -80,43 +80,43 @@ impl<'a, T: OnOffHooks> ClusterAsyncHandler for OnOffCluster<'a, T> {
         self.dataver.changed();
     }
 
-    async fn on_off(&self, _ctx: &ReadContext<'_>) -> Result<bool, Error> {
+    async fn on_off(&self, _ctx: impl ReadContext) -> Result<bool, Error> {
         info!("OnOff: Called on_off()");
         Ok(self.handler.raw_get_on_off())
     }
 
-    async fn handle_off(&self, ctx: &InvokeContext<'_>) -> Result<(), Error> {
+    async fn handle_off(&self, ctx: impl InvokeContext) -> Result<(), Error> {
         info!("OnOff: Called handle_off()");
         self.set(ctx, false)
     }
 
-    async fn handle_on(&self, ctx: &InvokeContext<'_>) -> Result<(), Error> {
+    async fn handle_on(&self, ctx: impl InvokeContext) -> Result<(), Error> {
         info!("OnOff: Called handle_on()");
         self.set(ctx, true)
     }
 
-    async fn handle_toggle(&self, ctx: &InvokeContext<'_>) -> Result<(), Error> {
+    async fn handle_toggle(&self, ctx: impl InvokeContext) -> Result<(), Error> {
         info!("OnOff: Called handle_toggle()");
         self.set(ctx, !self.handler.raw_get_on_off())
     }
 
     async fn handle_off_with_effect(
         &self,
-        _ctx: &InvokeContext<'_>,
+        _ctx: impl InvokeContext,
         _request: OffWithEffectRequest<'_>,
     ) -> Result<(), Error> {
         info!("OnOff: Called handle_off_with_effect()");
         Err(ErrorCode::InvalidCommand.into())
     }
 
-    async fn handle_on_with_recall_global_scene(&self, _ctx: &InvokeContext<'_>) -> Result<(), Error> {
+    async fn handle_on_with_recall_global_scene(&self, _ctx: impl InvokeContext) -> Result<(), Error> {
         info!("OnOff: Called handle_on_with_recall_global_scene()");
         Err(ErrorCode::InvalidCommand.into())
     }
 
     async fn handle_on_with_timed_off(
         &self,
-        _ctx: &InvokeContext<'_>,
+        _ctx: impl InvokeContext,
         _request: OnWithTimedOffRequest<'_>,
     ) -> Result<(), Error> {
         info!("OnOff: Called handle_on_with_timed_off()");
@@ -127,6 +127,6 @@ impl<'a, T: OnOffHooks> ClusterAsyncHandler for OnOffCluster<'a, T> {
 pub trait OnOffHooks {
     fn raw_get_on_off(&self) -> bool;
     fn raw_set_on_off(&self, on: bool) -> Result<(), Error>;
-    fn set_on(&self, ctx: &InvokeContext<'_>, on: bool) -> Result<(), Error>;
+    fn set_on(&self, ctx: impl InvokeContext, on: bool) -> Result<(), Error>;
 }
 

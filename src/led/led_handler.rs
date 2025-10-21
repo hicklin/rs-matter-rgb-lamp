@@ -4,10 +4,9 @@ use crate::data_model::clusters::level_control::{OptionsBitmap};
 use crate::data_model::level_control::LevelControlHooks;
 use crate::data_model::on_off::OnOffHooks;
 
-use rs_matter::tlv::Nullable;
-use rs_matter::error::{Error, ErrorCode};
-use rs_matter::data_model::objects::{InvokeContext};
-
+use rs_matter_embassy::matter::tlv::Nullable;
+use rs_matter_embassy::matter::error::{Error, ErrorCode};
+use rs_matter_embassy::matter::dm::InvokeContext;
 
 pub struct LedHandler<'a> {
     sender: LedSender<'a>,
@@ -44,9 +43,9 @@ impl<'a> OnOffHooks for LedHandler<'a> {
     fn raw_set_on_off(&self, on: bool) -> Result<(), Error> {
         self.on_off.set(on);
         Ok(())
-    }    
-
-    fn set_on(&self, _ctx: &InvokeContext<'_>, on: bool) -> Result<(), Error> {
+    }
+        
+    fn set_on(&self, _ctx: impl InvokeContext, on: bool) -> Result<(), Error> {
         match on {
             true =>  self.sender.try_send(ControlMessage::SetOn(Some(150))).map_err(|_| Error::new(ErrorCode::Busy)),
             false => self.sender.try_send(ControlMessage::SetOn(None)).map_err(|_| Error::new(ErrorCode::Busy)),
@@ -59,7 +58,7 @@ impl<'a> LevelControlHooks for LedHandler<'a> {
 
     const MAX_LEVEL: u8 = 254;
 
-    fn set_level(&self, _ctx: &InvokeContext<'_>, level: u8) -> Result<(), Error> {
+    fn set_level(&self, _ctx: impl InvokeContext, level: u8) -> Result<(), Error> {
         self.sender.try_send(ControlMessage::SetBrightness(level)).map_err(|_| ErrorCode::Busy.into())
     }
     
