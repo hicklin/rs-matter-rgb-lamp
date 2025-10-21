@@ -4,26 +4,22 @@
 #![recursion_limit = "256"]
 
 use core::pin::pin;
-use embassy_futures::select::{select, Either};
-
 use alloc::boxed::Box;
+use log::info;
 
 use embassy_executor::Spawner;
-
 use embassy_sync::channel::Channel;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+use embassy_futures::select::{select, Either};
 
 use esp_alloc::heap_allocator;
 use esp_backtrace as _;
 use esp_hal::timer::timg::TimerGroup;
 
-use log::info;
 
 use rs_matter_embassy::epoch::epoch;
-
 use rs_matter_embassy::matter::dm::clusters::desc::{self, ClusterHandler as _};
-// use rs_matter_embassy::matter::dm::clusters::on_off::test::TestOnOffDeviceLogic;
-// use rs_matter_embassy::matter::dm::clusters::on_off::{self, OnOffHooks};
+use rs_matter_embassy::matter::dm::clusters::on_off::{self, OnOffHandler, ClusterAsyncHandler as _, NoLevelControl};
 use rs_matter_embassy::matter::dm::devices::test::{TEST_DEV_ATT, TEST_DEV_COMM, TEST_DEV_DET};
 use rs_matter_embassy::matter::dm::{Async, Dataver, EmptyHandler, Endpoint, EpClMatcher, Node, DeviceType};
 
@@ -35,7 +31,6 @@ use rs_matter_embassy::wireless::esp::EspWifiDriver;
 use rs_matter_embassy::wireless::{EmbassyWifi, EmbassyWifiMatterStack};
 
 use matter_rgb_lamp::led::led;
-use matter_rgb_lamp::data_model::on_off::{self, ClusterAsyncHandler as _};
 use matter_rgb_lamp::data_model::level_control::{self, ClusterHandler as _};
 use matter_rgb_lamp::data_model::color_control::{self, ClusterHandler as _, ColorControlHandler};
 
@@ -104,8 +99,11 @@ async fn main(_s: Spawner) {
     let channel = Channel::<CriticalSectionRawMutex, led::ControlMessage, 4>::new();
     let sender = channel.sender();
 
-    let led_handler = LedHandler::new(sender.clone());
     let color_control_handler = ColorControlHandler::new(sender);
+    
+    let led_handler = LedHandler::new(sender.clone());
+    let on_off_handler = OnOffHandler::<'_, _, NoLevelControl>::new(Dataver::new_rand(stack.matter().rand()), LIGHT_ENDPOINT_ID, &led_handler);
+    on_off_handler.init(None);
 
     // Chain our endpoint clusters
     let handler = EmptyHandler
@@ -113,9 +111,9 @@ async fn main(_s: Spawner) {
         .chain(
             EpClMatcher::new(
                 Some(LIGHT_ENDPOINT_ID),
-                Some(on_off::OnOffCluster::<LedHandler>::CLUSTER.id),
+                Some(OnOffHandler::<LedHandler, NoLevelControl>::CLUSTER.id),
             ),
-            on_off::OnOffCluster::new(Dataver::new_rand(stack.matter().rand()), &led_handler).adapt(),
+            on_off::HandlerAsyncAdaptor(on_off_handler),
         )
         .chain(
             EpClMatcher::new(
@@ -202,7 +200,7 @@ const NODE: Node = Node {
             device_types: devices!(DEV_TYPE_ENHANCED_COLOR_LIGHT),
             clusters: clusters!(
                 desc::DescHandler::CLUSTER,
-                on_off::OnOffCluster::<LedHandler>::CLUSTER,
+                OnOffHandler::<LedHandler, NoLevelControl>::CLUSTER,
                 level_control::LevelControlCluster::<LedHandler>::CLUSTER
                 color_control::ColorControlCluster::<ColorControlHandler>::CLUSTER
             ),

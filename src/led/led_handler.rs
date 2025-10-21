@@ -1,17 +1,22 @@
 use core::cell::Cell;
-use crate::led::led::{LedSender, ControlMessage};
-use crate::data_model::clusters::level_control::{OptionsBitmap};
-use crate::data_model::level_control::LevelControlHooks;
-use crate::data_model::on_off::OnOffHooks;
+use log::info;
 
 use rs_matter_embassy::matter::tlv::Nullable;
 use rs_matter_embassy::matter::error::{Error, ErrorCode};
-use rs_matter_embassy::matter::dm::InvokeContext;
+use rs_matter_embassy::matter::dm::{InvokeContext, Cluster};
+use rs_matter_embassy::matter::with;
+use rs_matter_embassy::matter::dm::clusters::on_off::{self, OnOffHooks, StartUpOnOffEnum};
+
+use crate::led::led::{LedSender, ControlMessage};
+use crate::data_model::clusters::level_control::{OptionsBitmap};
+use crate::data_model::level_control::LevelControlHooks;
+
 
 pub struct LedHandler<'a> {
     sender: LedSender<'a>,
     // OnOff Attributes
     on_off: Cell<bool>,
+    start_up_on_off: Cell<Option<StartUpOnOffEnum>>,
     // LevelControl Attributes
     options: Cell<OptionsBitmap>,
     on_level: Cell<Nullable<u8>>,
@@ -25,6 +30,7 @@ impl<'a> LedHandler<'a> {
         Self {
             sender,
             on_off: Cell::new(false),
+            start_up_on_off: Cell::new(None),
             options: Cell::new(OptionsBitmap::from_bits(OptionsBitmap::EXECUTE_IF_OFF.bits() as u8)
                 .unwrap()),
             on_level: Cell::new(Nullable::some(42)),
@@ -36,20 +42,54 @@ impl<'a> LedHandler<'a> {
 }
 
 impl<'a> OnOffHooks for LedHandler<'a> {
-    fn raw_get_on_off(&self) -> bool {
+    const CLUSTER: Cluster<'static> = on_off::FULL_CLUSTER
+        .with_revision(6)
+        .with_features(on_off::Feature::LIGHTING.bits())
+        .with_attrs(with!(
+            required;
+            on_off::AttributeId::OnOff
+            | on_off::AttributeId::GlobalSceneControl
+            | on_off::AttributeId::OnTime
+            | on_off::AttributeId::OffWaitTime
+            | on_off::AttributeId::StartUpOnOff
+        ))
+        .with_cmds(with!(
+            on_off::CommandId::Off
+                | on_off::CommandId::On
+                | on_off::CommandId::Toggle
+                | on_off::CommandId::OffWithEffect
+                | on_off::CommandId::OnWithRecallGlobalScene
+                | on_off::CommandId::OnWithTimedOff
+        ));
+
+    fn on_off(&self) -> bool {
         self.on_off.get()
     }
-    
-    fn raw_set_on_off(&self, on: bool) -> Result<(), Error> {
+
+    fn set_on_off(&self, on: bool) {
+        match on {
+            // todo this method should probably return an error `.map_err(|_| Error::new(ErrorCode::Busy))`
+            true =>  { let _ = self.sender.try_send(ControlMessage::SetOn(Some(150))); },
+            false => { let _ = self.sender.try_send(ControlMessage::SetOn(None)); },
+        }
         self.on_off.set(on);
+        info!("OnOff state set to: {}", on);
+    }
+
+    fn start_up_on_off(&self) -> Nullable<on_off::StartUpOnOffEnum> {
+        match self.start_up_on_off.get() {
+            Some(value) => Nullable::some(value),
+            None => Nullable::none(),
+        }
+    }
+
+    fn set_start_up_on_off(&self, value: Nullable<on_off::StartUpOnOffEnum>) -> Result<(), Error> {
+        self.start_up_on_off.set(value.into_option());
         Ok(())
     }
-        
-    fn set_on(&self, _ctx: impl InvokeContext, on: bool) -> Result<(), Error> {
-        match on {
-            true =>  self.sender.try_send(ControlMessage::SetOn(Some(150))).map_err(|_| Error::new(ErrorCode::Busy)),
-            false => self.sender.try_send(ControlMessage::SetOn(None)).map_err(|_| Error::new(ErrorCode::Busy)),
-        }
+
+    async fn handle_off_with_effect(&self, _effect: on_off::EffectVariantEnum) {
+        // no effect
     }
 }
 
