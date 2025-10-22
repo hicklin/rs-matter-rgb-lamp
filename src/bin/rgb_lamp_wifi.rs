@@ -19,7 +19,8 @@ use esp_hal::timer::timg::TimerGroup;
 
 use rs_matter_embassy::epoch::epoch;
 use rs_matter_embassy::matter::dm::clusters::desc::{self, ClusterHandler as _};
-use rs_matter_embassy::matter::dm::clusters::on_off::{self, OnOffHandler, ClusterAsyncHandler as _, NoLevelControl};
+use rs_matter_embassy::matter::dm::clusters::on_off::{self, OnOffHandler, ClusterAsyncHandler as _};
+use rs_matter_embassy::matter::dm::clusters::level_control::{self, LevelControlHandler, AttributeDefaults, OptionsBitmap, ClusterAsyncHandler as _, };
 use rs_matter_embassy::matter::dm::devices::test::{TEST_DEV_ATT, TEST_DEV_COMM, TEST_DEV_DET};
 use rs_matter_embassy::matter::dm::{Async, Dataver, EmptyHandler, Endpoint, EpClMatcher, Node, DeviceType};
 
@@ -29,9 +30,9 @@ use rs_matter_embassy::rand::esp::{esp_init_rand, esp_rand};
 use rs_matter_embassy::stack::persist::DummyKvBlobStore;
 use rs_matter_embassy::wireless::esp::EspWifiDriver;
 use rs_matter_embassy::wireless::{EmbassyWifi, EmbassyWifiMatterStack};
+use rs_matter_embassy::matter::tlv::Nullable;
 
 use matter_rgb_lamp::led::led;
-use matter_rgb_lamp::data_model::level_control::{self, ClusterHandler as _};
 use matter_rgb_lamp::data_model::color_control::{self, ClusterHandler as _, ColorControlHandler};
 
 use matter_rgb_lamp::led::led_handler::LedHandler;
@@ -98,12 +99,28 @@ async fn main(_s: Spawner) {
     // Set up Matter data model handler
     let channel = Channel::<CriticalSectionRawMutex, led::ControlMessage, 4>::new();
     let sender = channel.sender();
-
-    let color_control_handler = ColorControlHandler::new(sender);
     
     let led_handler = LedHandler::new(sender.clone());
-    let on_off_handler = OnOffHandler::<'_, _, NoLevelControl>::new(Dataver::new_rand(stack.matter().rand()), LIGHT_ENDPOINT_ID, &led_handler);
-    on_off_handler.init(None);
+
+    let on_off_handler = OnOffHandler::new(
+        Dataver::new_rand(stack.matter().rand()), 
+        LIGHT_ENDPOINT_ID, 
+        &led_handler,
+    );
+    let level_control_handler = LevelControlHandler::new(
+        Dataver::new_rand(stack.matter().rand()), 
+        LIGHT_ENDPOINT_ID, 
+        &led_handler, 
+        AttributeDefaults { 
+            on_level: Nullable::some(42), 
+            options: OptionsBitmap::EXECUTE_IF_OFF, 
+            ..Default::default()
+        });
+
+    on_off_handler.init(Some(&level_control_handler));
+    level_control_handler.init(Some(&on_off_handler));
+
+    let color_control_handler = ColorControlHandler::new(sender);
 
     // Chain our endpoint clusters
     let handler = EmptyHandler
@@ -111,16 +128,16 @@ async fn main(_s: Spawner) {
         .chain(
             EpClMatcher::new(
                 Some(LIGHT_ENDPOINT_ID),
-                Some(OnOffHandler::<LedHandler, NoLevelControl>::CLUSTER.id),
+                Some(OnOffHandler::<LedHandler, LedHandler>::CLUSTER.id),
             ),
-            on_off::HandlerAsyncAdaptor(on_off_handler),
+            on_off::HandlerAsyncAdaptor(&on_off_handler),
         )
         .chain(
             EpClMatcher::new(
                 Some(LIGHT_ENDPOINT_ID),
-                Some(level_control::LevelControlCluster::<LedHandler>::CLUSTER.id),
+                Some(LevelControlHandler::<LedHandler, LedHandler>::CLUSTER.id),
             ),
-            Async(level_control::LevelControlCluster::new(Dataver::new_rand(stack.matter().rand()), &led_handler).adapt()),
+            level_control::HandlerAsyncAdaptor(&level_control_handler),
         )
         .chain(
             EpClMatcher::new(
@@ -200,8 +217,8 @@ const NODE: Node = Node {
             device_types: devices!(DEV_TYPE_ENHANCED_COLOR_LIGHT),
             clusters: clusters!(
                 desc::DescHandler::CLUSTER,
-                OnOffHandler::<LedHandler, NoLevelControl>::CLUSTER,
-                level_control::LevelControlCluster::<LedHandler>::CLUSTER
+                OnOffHandler::<LedHandler, LedHandler>::CLUSTER,
+                LevelControlHandler::<LedHandler, LedHandler>::CLUSTER
                 color_control::ColorControlCluster::<ColorControlHandler>::CLUSTER
             ),
         },

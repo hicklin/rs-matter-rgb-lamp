@@ -1,16 +1,15 @@
 use core::cell::Cell;
 use palette::white_point::D65;
+use log::{info, warn};
 
 use rs_matter_embassy::matter::dm::{Dataver, ReadContext, WriteContext, InvokeContext, Cluster};
 use rs_matter_embassy::matter::with;
 use rs_matter_embassy::matter::error::{Error, ErrorCode};
 use rs_matter_embassy::matter::tlv::Nullable;
+use rs_matter_embassy::matter::dm::clusters::level_control::OptionsBitmap;
 
 use crate::data_model::clusters::color_control::*;
 pub use crate::data_model::clusters::color_control::ClusterHandler;
-use crate::data_model::level_control::OptionsBitmap;
-
-use log::{info, warn};
 
 pub struct ColorControlCluster<T: ColorControlHooks> {
     dataver: Dataver,
