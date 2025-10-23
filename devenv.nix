@@ -12,7 +12,7 @@
   languages.rust = {
     enable = true;
     channel = "nightly";
-    components = [ "cargo" "rustc" "rust-src" "rustfmt" ];
+    components = [ "cargo" "rustc" "rust-src" "rustfmt" "clippy"];
     targets = [ "riscv32imac-unknown-none-elf" ];
   };
 

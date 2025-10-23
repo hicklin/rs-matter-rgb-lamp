@@ -1,14 +1,14 @@
 use core::cell::Cell;
 use log::info;
 
-use rs_matter_embassy::matter::tlv::Nullable;
-use rs_matter_embassy::matter::error::Error;
 use rs_matter_embassy::matter::dm::Cluster;
-use rs_matter_embassy::matter::with;
-use rs_matter_embassy::matter::dm::clusters::on_off::{self, OnOffHooks, StartUpOnOffEnum};
 use rs_matter_embassy::matter::dm::clusters::level_control::{self, LevelControlHooks};
+use rs_matter_embassy::matter::dm::clusters::on_off::{self, OnOffHooks, StartUpOnOffEnum};
+use rs_matter_embassy::matter::error::Error;
+use rs_matter_embassy::matter::tlv::Nullable;
+use rs_matter_embassy::matter::with;
 
-use crate::led::led::{LedSender, ControlMessage};
+use crate::led::led_driver::{ControlMessage, LedSender};
 
 pub struct LedHandler<'a> {
     sender: LedSender<'a>,
@@ -60,8 +60,12 @@ impl<'a> OnOffHooks for LedHandler<'a> {
     fn set_on_off(&self, on: bool) {
         match on {
             // todo this method should probably return an error `.map_err(|_| Error::new(ErrorCode::Busy))`
-            true =>  { let _ = self.sender.try_send(ControlMessage::SetOn(Some(150))); },
-            false => { let _ = self.sender.try_send(ControlMessage::SetOn(None)); },
+            true => {
+                let _ = self.sender.try_send(ControlMessage::SetOn(Some(150)));
+            }
+            false => {
+                let _ = self.sender.try_send(ControlMessage::SetOn(None));
+            }
         }
         self.on_off.set(on);
         info!("OnOff state set to: {}", on);
@@ -121,7 +125,9 @@ impl<'a> LevelControlHooks for LedHandler<'a> {
         ));
 
     fn set_device_level(&self, level: u8) -> Result<Option<u8>, ()> {
-        self.sender.try_send(ControlMessage::SetBrightness(level)).map_err(|_| ())?;
+        self.sender
+            .try_send(ControlMessage::SetBrightness(level))
+            .map_err(|_| ())?;
         Ok(Some(level))
     }
 
@@ -138,7 +144,7 @@ impl<'a> LevelControlHooks for LedHandler<'a> {
     }
 
     fn set_start_up_current_level(&self, value: Option<u8>) -> Result<(), Error> {
-        Ok(self.startup_current_level.set(value))
+        self.startup_current_level.set(value);
+        Ok(())
     }
-
 }

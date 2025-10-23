@@ -43,6 +43,7 @@ esp32s3 = ["esp-rtos/esp32s3", "esp-hal/esp32s3", "esp-backtrace/esp32s3", "esp-
 esp32h2 = ["esp-rtos/esp32h2", "esp-hal/esp32h2", "esp-backtrace/esp32h2", "esp-println/esp32h2", "esp-radio/esp32h2", "esp-bootloader-esp-idf/esp32h2", "portable-atomic/critical-section", "thread"]
 wifi = ["rs-matter-embassy/embassy-net"]
 thread = ["rs-matter-embassy/openthread"]
+defmt = ["dep:defmt"]
 
 [dependencies]
 log = "0.4"
@@ -61,8 +62,9 @@ embassy-futures = "0.1"
 embassy-time = "0.5"
 static_cell = "2"
 portable-atomic = "1"
-# esp-hal-smartled needs to be update to work with esp-hal v1.0.0-rc.1.
-# esp-hal-smartled = { version="0.16.0", features=["esp32c6"]}
+# esp-hal-smartled needs to be update to work with esp-hal v1.0.0-rc.1. See PR [#53](https://github.com/esp-rs/esp-hal-community/pull/53)
+esp-hal-smartled = { git = "https://github.com/badamson/esp-hal-community.git", branch = "updates-for-esp-hal-1.0.0-rc.1", features=["esp32c6"]}
 smart-leds = "0.4.0"
 palette = {version = "0.7.6", default-features = false, features = ["libm"]}
 rs-matter = { version = "0.1", default-features = false }
+defmt = { version = "0.3", optional = true }

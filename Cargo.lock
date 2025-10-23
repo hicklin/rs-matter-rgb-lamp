@@ -1343,6 +1343,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "esp-hal-smartled"
+version = "0.16.0"
+source = "git+https://github.com/badamson/esp-hal-community.git?branch=updates-for-esp-hal-1.0.0-rc.1#5df693ca55848fa7a4cdae5563e3877e5d0a562e"
+dependencies = [
+ "document-features",
+ "esp-hal",
+ "rgb",
+ "smart-leds-trait",
+]
+
+[[package]]
 name = "esp-metadata-generated"
 version = "0.2.0"
 source = "git+https://github.com/esp-rs/esp-hal#42a097d373e565f23eb1661e62686d38115c0c17"
@@ -2093,6 +2104,7 @@ checksum = "0ca88d725a0a943b096803bd34e73a4437208b6077654cc4ecb2947a5f91618d"
 name = "matter-rgb-lamp"
 version = "0.1.0"
 dependencies = [
+ "defmt 0.3.100",
  "embassy-executor",
  "embassy-futures",
  "embassy-sync 0.7.2",
@@ -2101,6 +2113,7 @@ dependencies = [
  "esp-backtrace",
  "esp-bootloader-esp-idf",
  "esp-hal",
+ "esp-hal-smartled",
  "esp-println",
  "esp-radio",
  "esp-rtos",
@@ -2772,6 +2785,9 @@ name = "rgb"
 version = "0.8.52"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c6a884d2998352bb4daf0183589aec883f16a6da1f4dde84d8e2e9a5409a1ce"
+dependencies = [
+ "bytemuck",
+]
 
 [[package]]
 name = "riscv"

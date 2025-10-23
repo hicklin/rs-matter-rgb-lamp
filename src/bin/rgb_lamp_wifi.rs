@@ -4,42 +4,50 @@
 #![recursion_limit = "256"]
 
 use core::pin::pin;
+
 use alloc::boxed::Box;
-use log::info;
 
 use embassy_executor::Spawner;
-use embassy_sync::channel::Channel;
-use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
-use embassy_futures::select::{select, Either};
 
 use esp_alloc::heap_allocator;
 use esp_backtrace as _;
 use esp_hal::timer::timg::TimerGroup;
 
+use log::info;
+
+use embassy_futures::select::{Either, select};
+use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+use embassy_sync::channel::Channel;
 
 use rs_matter_embassy::epoch::epoch;
 use rs_matter_embassy::matter::dm::clusters::desc::{self, ClusterHandler as _};
-use rs_matter_embassy::matter::dm::clusters::on_off::{self, OnOffHandler, ClusterAsyncHandler as _};
-use rs_matter_embassy::matter::dm::clusters::level_control::{self, LevelControlHandler, AttributeDefaults, OptionsBitmap, ClusterAsyncHandler as _, };
+use rs_matter_embassy::matter::dm::clusters::level_control::{
+    self, AttributeDefaults, ClusterAsyncHandler as _, LevelControlHandler, OptionsBitmap,
+};
+use rs_matter_embassy::matter::dm::clusters::on_off::{
+    self, ClusterAsyncHandler as _, OnOffHandler,
+};
 use rs_matter_embassy::matter::dm::devices::test::{TEST_DEV_ATT, TEST_DEV_COMM, TEST_DEV_DET};
-use rs_matter_embassy::matter::dm::{Async, Dataver, EmptyHandler, Endpoint, EpClMatcher, Node, DeviceType};
+use rs_matter_embassy::matter::dm::{
+    Async, Dataver, DeviceType, EmptyHandler, Endpoint, EpClMatcher, Node,
+};
 
+use rs_matter_embassy::matter::tlv::Nullable;
 use rs_matter_embassy::matter::utils::init::InitMaybeUninit;
 use rs_matter_embassy::matter::{clusters, devices};
 use rs_matter_embassy::rand::esp::{esp_init_rand, esp_rand};
 use rs_matter_embassy::stack::persist::DummyKvBlobStore;
 use rs_matter_embassy::wireless::esp::EspWifiDriver;
 use rs_matter_embassy::wireless::{EmbassyWifi, EmbassyWifiMatterStack};
-use rs_matter_embassy::matter::tlv::Nullable;
 
-use matter_rgb_lamp::led::led;
 use matter_rgb_lamp::data_model::color_control::{self, ClusterHandler as _, ColorControlHandler};
+use matter_rgb_lamp::led::led_driver;
 
 use matter_rgb_lamp::led::led_handler::LedHandler;
 
 extern crate alloc;
 
-const BUMP_SIZE: usize = 16500;
+const BUMP_SIZE: usize = 17000;
 
 #[cfg(feature = "esp32")]
 const HEAP_SIZE: usize = 40 * 1024; // 40KB for ESP32, which has a disjoint heap
@@ -97,25 +105,26 @@ async fn main(_s: Spawner) {
 
     // == Step 3: ==
     // Set up Matter data model handler
-    let channel = Channel::<CriticalSectionRawMutex, led::ControlMessage, 4>::new();
+    let channel = Channel::<CriticalSectionRawMutex, led_driver::ControlMessage, 4>::new();
     let sender = channel.sender();
-    
-    let led_handler = LedHandler::new(sender.clone());
+
+    let led_handler = LedHandler::new(sender);
 
     let on_off_handler = OnOffHandler::new(
-        Dataver::new_rand(stack.matter().rand()), 
-        LIGHT_ENDPOINT_ID, 
+        Dataver::new_rand(stack.matter().rand()),
+        LIGHT_ENDPOINT_ID,
         &led_handler,
     );
     let level_control_handler = LevelControlHandler::new(
-        Dataver::new_rand(stack.matter().rand()), 
-        LIGHT_ENDPOINT_ID, 
-        &led_handler, 
-        AttributeDefaults { 
-            on_level: Nullable::some(42), 
-            options: OptionsBitmap::EXECUTE_IF_OFF, 
+        Dataver::new_rand(stack.matter().rand()),
+        LIGHT_ENDPOINT_ID,
+        &led_handler,
+        AttributeDefaults {
+            on_level: Nullable::some(42),
+            options: OptionsBitmap::EXECUTE_IF_OFF,
             ..Default::default()
-        });
+        },
+    );
 
     on_off_handler.init(Some(&level_control_handler));
     level_control_handler.init(Some(&on_off_handler));
@@ -124,7 +133,6 @@ async fn main(_s: Spawner) {
 
     // Chain our endpoint clusters
     let handler = EmptyHandler
-        // Our on-off cluster, on Endpoint 1
         .chain(
             EpClMatcher::new(
                 Some(LIGHT_ENDPOINT_ID),
@@ -144,10 +152,14 @@ async fn main(_s: Spawner) {
                 Some(LIGHT_ENDPOINT_ID),
                 Some(color_control::ColorControlCluster::<ColorControlHandler>::CLUSTER.id),
             ),
-            Async(color_control::ColorControlCluster::new(Dataver::new_rand(stack.matter().rand()), color_control_handler).adapt()),
+            Async(
+                color_control::ColorControlCluster::new(
+                    Dataver::new_rand(stack.matter().rand()),
+                    color_control_handler,
+                )
+                .adapt(),
+            ),
         )
-        // Each Endpoint needs a Descriptor cluster too
-        // Just use the one that `rs-matter` provides out of the box
         .chain(
             EpClMatcher::new(Some(LIGHT_ENDPOINT_ID), Some(desc::DescHandler::CLUSTER.id)),
             Async(desc::DescHandler::new(Dataver::new_rand(stack.matter().rand())).adapt()),
@@ -183,7 +195,7 @@ async fn main(_s: Spawner) {
     // == Step 5: ==
     // Setup the LED driver
     let receiver = channel.receiver();
-    let led_driver = led::Driver::new(peripherals.RMT, peripherals.GPIO8.into(), receiver);
+    let led_driver = led_driver::Driver::new(peripherals.RMT, peripherals.GPIO8.into(), receiver);
     let mut led_task = pin!(led_driver.run());
 
     // == Step 6: ==
@@ -191,10 +203,10 @@ async fn main(_s: Spawner) {
     match select(&mut matter, &mut led_task).await {
         Either::First(_) => {
             panic!("Matter thread exited!")
-        },
+        }
         Either::Second(_) => {
             panic!("LED thread exited!")
-        },
+        }
     }
 }
 
