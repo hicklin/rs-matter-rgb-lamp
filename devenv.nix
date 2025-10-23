@@ -7,6 +7,7 @@
     pkgs.git 
     pkgs.cargo-espflash
     pkgs.cargo-expand
+    pkgs.esptool
   ];
 
   languages.rust = {

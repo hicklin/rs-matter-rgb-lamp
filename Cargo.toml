@@ -35,12 +35,12 @@ overflow-checks = false
 
 [features]
 default = ["esp32c6"]
-esp32 = ["esp-rtos/esp32", "esp-hal/esp32", "esp-backtrace/esp32", "esp-println/esp32", "esp-radio/esp32", "esp-bootloader-esp-idf/esp32", "portable-atomic/critical-section", "wifi"]
-esp32c2 = ["esp-rtos/esp32c2", "esp-hal/esp32c2", "esp-backtrace/esp32c2", "esp-println/esp32c2", "esp-radio/esp32c2", "esp-bootloader-esp-idf/esp32c2", "portable-atomic/critical-section", "wifi"]
-esp32c3 = ["esp-rtos/esp32c3", "esp-hal/esp32c3", "esp-backtrace/esp32c3", "esp-println/esp32c3", "esp-radio/esp32c3", "esp-bootloader-esp-idf/esp32c3", "portable-atomic/unsafe-assume-single-core", "wifi"]
-esp32c6 = ["esp-rtos/esp32c6", "esp-hal/esp32c6", "esp-backtrace/esp32c6", "esp-println/esp32c6", "esp-radio/esp32c6", "esp-bootloader-esp-idf/esp32c6", "portable-atomic/critical-section", "wifi"]
-esp32s3 = ["esp-rtos/esp32s3", "esp-hal/esp32s3", "esp-backtrace/esp32s3", "esp-println/esp32s3", "esp-radio/esp32s3", "esp-bootloader-esp-idf/esp32s3", "portable-atomic/critical-section", "wifi"]
-esp32h2 = ["esp-rtos/esp32h2", "esp-hal/esp32h2", "esp-backtrace/esp32h2", "esp-println/esp32h2", "esp-radio/esp32h2", "esp-bootloader-esp-idf/esp32h2", "portable-atomic/critical-section", "thread"]
+esp32 = ["esp-rtos/esp32", "esp-hal/esp32", "esp-backtrace/esp32", "esp-println/esp32", "esp-radio/esp32", "esp-storage/esp32", "esp-bootloader-esp-idf/esp32", "portable-atomic/critical-section", "wifi"]
+esp32c2 = ["esp-rtos/esp32c2", "esp-hal/esp32c2", "esp-backtrace/esp32c2", "esp-println/esp32c2", "esp-radio/esp32c2", "esp-storage/esp32c2", "esp-bootloader-esp-idf/esp32c2", "portable-atomic/critical-section", "wifi"]
+esp32c3 = ["esp-rtos/esp32c3", "esp-hal/esp32c3", "esp-backtrace/esp32c3", "esp-println/esp32c3", "esp-radio/esp32c3", "esp-storage/esp32c3", "esp-bootloader-esp-idf/esp32c3", "portable-atomic/unsafe-assume-single-core", "wifi"]
+esp32c6 = ["esp-rtos/esp32c6", "esp-hal/esp32c6", "esp-backtrace/esp32c6", "esp-println/esp32c6", "esp-radio/esp32c6", "esp-storage/esp32c6", "esp-bootloader-esp-idf/esp32c6", "portable-atomic/critical-section", "wifi"]
+esp32s3 = ["esp-rtos/esp32s3", "esp-hal/esp32s3", "esp-backtrace/esp32s3", "esp-println/esp32s3", "esp-radio/esp32s3", "esp-storage/esp32s3", "esp-bootloader-esp-idf/esp32s3", "portable-atomic/critical-section", "wifi"]
+esp32h2 = ["esp-rtos/esp32h2", "esp-hal/esp32h2", "esp-backtrace/esp32h2", "esp-println/esp32h2", "esp-radio/esp32h2", "esp-storage/esp32h2", "esp-bootloader-esp-idf/esp32h2", "portable-atomic/critical-section", "thread"]
 wifi = ["rs-matter-embassy/embassy-net"]
 thread = ["rs-matter-embassy/openthread"]
 defmt = ["dep:defmt"]
@@ -55,7 +55,7 @@ esp-alloc = { version = "0.9" }
 esp-println = { version = "0.16", features = ["log-04"] }
 esp-radio = { version = "0.16", features = ["ble", "log-04", "unstable"] }
 esp-bootloader-esp-idf = { version = "0.3", features = ["log-04"] }
-rs-matter-embassy = { git = "https://github.com/sysgrok/rs-matter-embassy.git", features = ["esp", "log"] }
+rs-matter-embassy = { git = "https://github.com/sysgrok/rs-matter-embassy.git", features = ["esp", "log", "kv-blob-store-8192"] }
 tinyrlibc = { version = "0.5", default-features = false, features = ["utoa", "strtoul"] }
 embassy-sync = "0.7"
 embassy-futures = "0.1"
@@ -68,3 +68,5 @@ smart-leds = "0.4.0"
 palette = {version = "0.7.6", default-features = false, features = ["libm"]}
 rs-matter = { version = "0.1", default-features = false }
 defmt = { version = "0.3", optional = true }
+esp-storage = "0.6.0"
+embassy-embedded-hal = "0.5.0"

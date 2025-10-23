@@ -12,6 +12,7 @@ use embassy_executor::Spawner;
 use esp_alloc::heap_allocator;
 use esp_backtrace as _;
 use esp_hal::timer::timg::TimerGroup;
+use esp_storage::FlashStorage;
 
 use log::info;
 
@@ -35,10 +36,13 @@ use rs_matter_embassy::matter::dm::{
 use rs_matter_embassy::matter::tlv::Nullable;
 use rs_matter_embassy::matter::utils::init::InitMaybeUninit;
 use rs_matter_embassy::matter::{clusters, devices};
+use rs_matter_embassy::persist::EmbassyKvBlobStore;
 use rs_matter_embassy::rand::esp::{esp_init_rand, esp_rand};
-use rs_matter_embassy::stack::persist::DummyKvBlobStore;
+use rs_matter_embassy::stack::persist::KvBlobStore;
 use rs_matter_embassy::wireless::esp::EspWifiDriver;
 use rs_matter_embassy::wireless::{EmbassyWifi, EmbassyWifiMatterStack};
+
+use embassy_embedded_hal::adapter::BlockingAsync;
 
 use matter_rgb_lamp::data_model::color_control::{self, ClusterHandler as _, ColorControlHandler};
 use matter_rgb_lamp::led::led_driver;
@@ -47,7 +51,7 @@ use matter_rgb_lamp::led::led_handler::LedHandler;
 
 extern crate alloc;
 
-const BUMP_SIZE: usize = 17000;
+const BUMP_SIZE: usize = 18000;
 
 #[cfg(feature = "esp32")]
 const HEAP_SIZE: usize = 40 * 1024; // 40KB for ESP32, which has a disjoint heap
@@ -57,6 +61,26 @@ const HEAP_SIZE: usize = 160 * 1024;
 const HEAP_SIZE: usize = 186 * 1024;
 
 esp_bootloader_esp_idf::esp_app_desc!();
+
+fn get_persistent_store() -> impl KvBlobStore {
+    use esp_bootloader_esp_idf::partitions::{
+        DataPartitionSubType, PARTITION_TABLE_MAX_LEN, PartitionType, read_partition_table,
+    };
+
+    let mut flash = FlashStorage::new();
+    let mut pt_mem = [0u8; PARTITION_TABLE_MAX_LEN];
+    let pt = read_partition_table(&mut flash, &mut pt_mem).unwrap();
+    let nvs = pt
+        .find_partition(PartitionType::Data(DataPartitionSubType::Nvs))
+        .unwrap()
+        .unwrap();
+
+    let start = nvs.offset();
+    let end = nvs.offset() + nvs.len();
+    info!("Found persistent partition at {:#x}..{:#x}", start, end);
+
+    EmbassyKvBlobStore::new(BlockingAsync::new(flash), start..end)
+}
 
 #[esp_rtos::main]
 async fn main(_s: Spawner) {
@@ -173,7 +197,7 @@ async fn main(_s: Spawner) {
     // `EmbassyPersist`+`EmbassyKvBlobStore` saves to a user-supplied NOR Flash region
     // However, for this demo and for simplicity, we use a dummy persister that does nothing
     let persist = stack
-        .create_persist_with_comm_window(DummyKvBlobStore)
+        .create_persist_with_comm_window(get_persistent_store())
         .await
         .unwrap();
 
@@ -201,8 +225,8 @@ async fn main(_s: Spawner) {
     // == Step 6: ==
     // Run async tasks
     match select(&mut matter, &mut led_task).await {
-        Either::First(_) => {
-            panic!("Matter thread exited!")
+        Either::First(r) => {
+            panic!("Matter thread exited! {:?}", r)
         }
         Either::Second(_) => {
             panic!("LED thread exited!")
