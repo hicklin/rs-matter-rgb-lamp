@@ -1,3 +1,3 @@
-use rs_matter::import;
+use rs_matter_embassy::matter::import;
 
 import!(ColorControl);

@@ -82,8 +82,12 @@ fn get_persistent_store() -> impl KvBlobStore {
     EmbassyKvBlobStore::new(BlockingAsync::new(flash), start..end)
 }
 
+#[cfg(feature = "defmt")]
+use esp_println as _;
+
 #[esp_rtos::main]
 async fn main(_s: Spawner) {
+    #[cfg(feature = "log")]
     esp_println::logger::init_logger(log::LevelFilter::Info);
 
     info!("Starting...");

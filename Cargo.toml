@@ -10,7 +10,7 @@ harness = false
 [patch.crates-io]
 # rs-matter = { git = "https://github.com/project-chip/rs-matter" }
 rs-matter = { git = "https://github.com/sysgrok/rs-matter", branch = "next" }
-# rs-matter = { path = "../../../rs-matter/rs-matter" }
+# rs-matter = { path = "../rs-matter-hicklin/rs-matter" }
 rs-matter-stack = { git = "https://github.com/sysgrok/rs-matter-stack.git", branch = "next" }
 openthread = { git = "https://github.com/sysgrok/openthread.git", branch = "next" }
 esp-backtrace = { git = "https://github.com/esp-rs/esp-hal" }
@@ -34,7 +34,7 @@ opt-level = "s"
 overflow-checks = false
 
 [features]
-default = ["esp32c6"]
+default = ["esp32c6", "wifi", "log"]
 esp32 = ["esp-rtos/esp32", "esp-hal/esp32", "esp-backtrace/esp32", "esp-println/esp32", "esp-radio/esp32", "esp-storage/esp32", "esp-bootloader-esp-idf/esp32", "portable-atomic/critical-section", "wifi"]
 esp32c2 = ["esp-rtos/esp32c2", "esp-hal/esp32c2", "esp-backtrace/esp32c2", "esp-println/esp32c2", "esp-radio/esp32c2", "esp-storage/esp32c2", "esp-bootloader-esp-idf/esp32c2", "portable-atomic/critical-section", "wifi"]
 esp32c3 = ["esp-rtos/esp32c3", "esp-hal/esp32c3", "esp-backtrace/esp32c3", "esp-println/esp32c3", "esp-radio/esp32c3", "esp-storage/esp32c3", "esp-bootloader-esp-idf/esp32c3", "portable-atomic/unsafe-assume-single-core", "wifi"]
@@ -43,19 +43,21 @@ esp32s3 = ["esp-rtos/esp32s3", "esp-hal/esp32s3", "esp-backtrace/esp32s3", "esp-
 esp32h2 = ["esp-rtos/esp32h2", "esp-hal/esp32h2", "esp-backtrace/esp32h2", "esp-println/esp32h2", "esp-radio/esp32h2", "esp-storage/esp32h2", "esp-bootloader-esp-idf/esp32h2", "portable-atomic/critical-section", "thread"]
 wifi = ["rs-matter-embassy/embassy-net"]
 thread = ["rs-matter-embassy/openthread"]
-defmt = ["dep:defmt"]
+log = ["esp-hal/log-04", "esp-println/log-04", "esp-radio/log-04", "esp-bootloader-esp-idf/log-04", "rs-matter-embassy/log"]
+defmt = ["dep:defmt", "esp-hal/defmt", "esp-println/defmt-espflash", "esp-radio/defmt", "esp-bootloader-esp-idf/defmt", "rs-matter-embassy/defmt"]
 
 [dependencies]
 log = "0.4"
 embassy-executor = "0.9"
 esp-backtrace = { version = "0.18", features = ["panic-handler", "println"] }
-esp-hal = { version = "=1.0.0-rc.1", features = ["log-04", "unstable", "exception-handler"] }
+esp-hal = { version = "=1.0.0-rc.1", features = ["unstable", "exception-handler"] }
 esp-rtos = { version = "0.1.0", features = ["esp-radio", "embassy"] }
 esp-alloc = { version = "0.9" }
-esp-println = { version = "0.16", features = ["log-04"] }
-esp-radio = { version = "0.16", features = ["ble", "log-04", "unstable"] }
-esp-bootloader-esp-idf = { version = "0.3", features = ["log-04"] }
-rs-matter-embassy = { git = "https://github.com/sysgrok/rs-matter-embassy.git", features = ["esp", "log", "kv-blob-store-8192"] }
+esp-println = { version = "0.16" }
+esp-radio = { version = "0.16", features = ["ble", "unstable"] }
+esp-bootloader-esp-idf = { version = "0.3" }
+# rs-matter-embassy = { path = "../rs-matter-embassy/rs-matter-embassy", features = ["esp", "kv-blob-store-8192"] }
+rs-matter-embassy = { git = "https://github.com/sysgrok/rs-matter-embassy.git", features = ["esp", "kv-blob-store-8192"] }
 tinyrlibc = { version = "0.5", default-features = false, features = ["utoa", "strtoul"] }
 embassy-sync = "0.7"
 embassy-futures = "0.1"
