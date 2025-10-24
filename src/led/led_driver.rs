@@ -1,7 +1,10 @@
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::{Receiver, Sender};
 
-use log::warn;
+#[cfg(feature = "defmt")]
+use defmt::{debug, warn};
+#[cfg(feature = "log")]
+use log::{debug, warn};
 
 use esp_hal::{
     gpio::AnyPin,
@@ -22,7 +25,7 @@ pub enum Mode {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ControlMessage {
-    SetOn(Option<u8>), // The value is the on_level. None indicates off.
+    SetOn(bool),
     SetBrightness(u8),
     SetColour { r: u8, g: u8, b: u8 },
     SetMode(Mode),
@@ -76,6 +79,10 @@ impl<'a> Driver<'a> {
 
     // Sets the LED to the current values.
     async fn update_led(&mut self) -> Result<(), LedAdapterError> {
+        debug!(
+            "Updating LED: colour: {:?} | level: {}",
+            self.colour, self.level
+        );
         self.led
             .write(brightness(gamma([self.colour].into_iter()), self.level))
             .await
@@ -89,19 +96,9 @@ impl<'a> Driver<'a> {
             let command = self.receiver.receive().await;
 
             match command {
-                ControlMessage::SetOn(on) => {
-                    match on {
-                        Some(on_level) => {
-                            self.level = on_level;
-                            self.update_led().await.unwrap();
-                        }
-                        None => {
-                            // todo: This will probably still consume some power.
-                            //  We might want to switch off current to the LED if possible.
-                            self.level = 0;
-                            self.update_led().await.unwrap();
-                        }
-                    }
+                ControlMessage::SetOn(_on) => {
+                    // todo physically switch the LED off, i.e. cut power.
+                    // unsure if this is possible of the esp32c6.
                 }
                 ControlMessage::SetBrightness(level) => {
                     self.level = level;

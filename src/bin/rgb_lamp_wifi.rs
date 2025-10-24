@@ -14,6 +14,9 @@ use esp_backtrace as _;
 use esp_hal::timer::timg::TimerGroup;
 use esp_storage::FlashStorage;
 
+#[cfg(feature = "defmt")]
+use defmt::info;
+#[cfg(feature = "log")]
 use log::info;
 
 use embassy_futures::select::{Either, select};

@@ -1,5 +1,8 @@
 use core::cell::Cell;
-use log::info;
+#[cfg(feature = "defmt")]
+use defmt::debug;
+#[cfg(feature = "log")]
+use log::debug;
 
 use rs_matter_embassy::matter::dm::Cluster;
 use rs_matter_embassy::matter::dm::clusters::level_control::{self, LevelControlHooks};
@@ -10,6 +13,7 @@ use rs_matter_embassy::matter::with;
 
 use crate::led::led_driver::{ControlMessage, LedSender};
 
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct LedHandler<'a> {
     sender: LedSender<'a>,
     // OnOff Attributes
@@ -24,9 +28,9 @@ impl<'a> LedHandler<'a> {
     pub const fn new(sender: LedSender<'a>) -> Self {
         Self {
             sender,
-            on_off: Cell::new(false),
+            on_off: Cell::new(true),
             start_up_on_off: Cell::new(None),
-            current_level: Cell::new(Some(1)),
+            current_level: Cell::new(Some(42)),
             startup_current_level: Cell::new(None),
         }
     }
@@ -57,18 +61,11 @@ impl<'a> OnOffHooks for LedHandler<'a> {
         self.on_off.get()
     }
 
+    // todo this method should probably return an error `.map_err(|_| Error::new(ErrorCode::Busy))`
     fn set_on_off(&self, on: bool) {
-        match on {
-            // todo this method should probably return an error `.map_err(|_| Error::new(ErrorCode::Busy))`
-            true => {
-                let _ = self.sender.try_send(ControlMessage::SetOn(Some(150)));
-            }
-            false => {
-                let _ = self.sender.try_send(ControlMessage::SetOn(None));
-            }
-        }
+        let _ = self.sender.try_send(ControlMessage::SetOn(on));
         self.on_off.set(on);
-        info!("OnOff state set to: {}", on);
+        debug!("OnOff state set to: {}", on);
     }
 
     fn start_up_on_off(&self) -> Nullable<on_off::StartUpOnOffEnum> {
@@ -125,6 +122,7 @@ impl<'a> LevelControlHooks for LedHandler<'a> {
         ));
 
     fn set_device_level(&self, level: u8) -> Result<Option<u8>, ()> {
+        debug!("LedHandler::set_device_level: level {}", level);
         self.sender
             .try_send(ControlMessage::SetBrightness(level))
             .map_err(|_| ())?;
@@ -136,6 +134,7 @@ impl<'a> LevelControlHooks for LedHandler<'a> {
     }
 
     fn set_current_level(&self, level: Option<u8>) {
+        debug!("LedHandler::set_current_level: level {:?}", level);
         self.current_level.set(level)
     }
 
