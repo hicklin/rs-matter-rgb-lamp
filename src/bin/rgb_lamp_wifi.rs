@@ -11,6 +11,7 @@ use embassy_executor::Spawner;
 
 use esp_alloc::heap_allocator;
 use esp_backtrace as _;
+use esp_hal::analog::adc::{Adc, AdcConfig, Attenuation};
 use esp_hal::gpio::{Input, InputConfig, Pull};
 use esp_hal::timer::timg::TimerGroup;
 use esp_storage::FlashStorage;
@@ -145,7 +146,12 @@ async fn main(_s: Spawner) {
         peripherals.GPIO7,
         InputConfig::default().with_pull(Pull::Up),
     );
-    let led_handler = LedHandler::new(sender, button_on_off);
+
+    let mut adc1_config = AdcConfig::new();
+    let pin = adc1_config.enable_pin(peripherals.GPIO4, Attenuation::_11dB);
+    let adc1 = Adc::new(peripherals.ADC1, adc1_config);
+
+    let led_handler = LedHandler::new(sender, button_on_off, adc1, pin);
 
     let on_off_handler = OnOffHandler::new(
         Dataver::new_rand(stack.matter().rand()),

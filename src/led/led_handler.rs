@@ -1,10 +1,11 @@
 use core::cell::{Cell, RefCell};
 
 #[cfg(feature = "defmt")]
-use defmt::debug;
+use defmt::{debug, error};
 #[cfg(feature = "log")]
-use log::debug;
+use log::{debug, error};
 
+use rs_matter::dm::clusters::level_control::OptionsBitmap;
 use rs_matter_embassy::matter::dm::Cluster;
 use rs_matter_embassy::matter::dm::clusters::level_control::{self, LevelControlHooks};
 use rs_matter_embassy::matter::dm::clusters::on_off::{self, OnOffHooks, StartUpOnOffEnum};
@@ -14,12 +15,19 @@ use rs_matter_embassy::matter::with;
 
 use crate::led::led_driver::{ControlMessage, LedSender};
 
+use esp_hal::Blocking;
+use esp_hal::analog::adc::{Adc, AdcPin};
 use esp_hal::gpio::Input;
+use esp_hal::peripherals::{ADC1, GPIO4};
+
+use embassy_time::Timer;
 
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct LedHandler<'a> {
     sender: LedSender<'a>,
     button_on_off: RefCell<Input<'a>>,
+    adc: RefCell<Adc<'a, ADC1<'a>, Blocking>>,
+    pin: RefCell<AdcPin<GPIO4<'a>, ADC1<'a>>>, // concrete types used to simplify example
     // OnOff Attributes
     on_off: Cell<bool>,
     start_up_on_off: Cell<Option<StartUpOnOffEnum>>,
@@ -29,10 +37,17 @@ pub struct LedHandler<'a> {
 }
 
 impl<'a> LedHandler<'a> {
-    pub fn new(sender: LedSender<'a>, button_on_off: Input<'a>) -> Self {
+    pub fn new(
+        sender: LedSender<'a>,
+        button_on_off: Input<'a>,
+        adc: Adc<'a, ADC1<'a>, Blocking>,
+        pin: AdcPin<GPIO4<'a>, ADC1<'a>>,
+    ) -> Self {
         Self {
             sender,
             button_on_off: RefCell::new(button_on_off),
+            adc: RefCell::new(adc),
+            pin: RefCell::new(pin),
             on_off: Cell::new(true),
             start_up_on_off: Cell::new(None),
             current_level: Cell::new(Some(42)),
@@ -164,5 +179,60 @@ impl<'a> LevelControlHooks for LedHandler<'a> {
     fn set_start_up_current_level(&self, value: Option<u8>) -> Result<(), Error> {
         self.startup_current_level.set(value);
         Ok(())
+    }
+
+    async fn run<F: Fn(level_control::OutOfBandMessage)>(&self, notify: F) {
+        #![allow(clippy::await_holding_refcell_ref)]
+        let mut adc = self.adc.borrow_mut();
+        let mut pin = self.pin.borrow_mut();
+
+        // The min and max values measured by the variable resistor. Obtained empirically.
+        let min: u32 = 2160;
+        let max: u32 = 4081;
+
+        let threshold: u32 = 15;
+        let mut old_value: u32 = 0;
+
+        loop {
+            if let Ok(val) = adc.read_oneshot(&mut pin) {
+                // todo needs a better way to deal with noise
+                let val = if (val as u32) < min + threshold {
+                    min
+                } else {
+                    val as u32
+                };
+
+                if val < old_value.saturating_sub(threshold)
+                    || val > old_value.saturating_add(threshold)
+                {
+                    old_value = val;
+
+                    // map the measured value to a level value
+                    let mut value = match (val - min)
+                        .checked_mul(Self::MAX_LEVEL as u32 - Self::MIN_LEVEL as u32)
+                    {
+                        Some(v) => v,
+                        None => {
+                            error!("overflow");
+                            continue;
+                        }
+                    };
+                    value /= max - min;
+                    let value = (value + Self::MIN_LEVEL as u32) as u8;
+
+                    notify(level_control::OutOfBandMessage::MoveToLevel {
+                        with_on_off: true,
+                        level: value,
+                        transition_time: Some(0),
+                        options_mask: OptionsBitmap::default(),
+                        options_override: OptionsBitmap::default(),
+                    })
+                }
+            } else {
+                error!("Error reading level");
+            }
+
+            Timer::after_millis(50).await;
+        }
     }
 }
