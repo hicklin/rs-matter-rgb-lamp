@@ -11,14 +11,14 @@ use embassy_executor::Spawner;
 
 use esp_alloc::heap_allocator;
 use esp_backtrace as _;
+use esp_hal::gpio::{Input, InputConfig, Pull};
 use esp_hal::timer::timg::TimerGroup;
-use esp_hal::gpio::{Pull, InputConfig, Input};
 use esp_storage::FlashStorage;
 
 #[cfg(feature = "defmt")]
-use defmt::{info, error};
+use defmt::{error, info};
 #[cfg(feature = "log")]
-use log::{info, error};
+use log::{error, info};
 
 use embassy_futures::select::{Either, Either3, select, select3};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
@@ -246,19 +246,17 @@ async fn main(_s: Spawner) {
     let mut reset_button_task = async || {
         loop {
             button_reset.wait_for_falling_edge().await;
-            match select(
-                button_reset.wait_for_rising_edge(), 
-                Timer::after_secs(3)).await {
-                    Either::First(_) => (),
-                    Either::Second(_) => {
-                        info!("Performing factory reset...");
-                        if let Err(e) = persist.reset().await {
-                            error!("Factory reset error: {}", e);
-                        };
-                        // todo reset non-volatile attributes.
-                        // todo Consider adding a `reset()` method to the rs-matter handlers.
-                    },
+            match select(button_reset.wait_for_rising_edge(), Timer::after_secs(3)).await {
+                Either::First(_) => (),
+                Either::Second(_) => {
+                    info!("Performing factory reset...");
+                    if let Err(e) = persist.reset().await {
+                        error!("Factory reset error: {}", e);
+                    };
+                    // todo reset non-volatile attributes.
+                    // todo Consider adding a `reset()` method to the rs-matter handlers.
                 }
+            }
         }
     };
 

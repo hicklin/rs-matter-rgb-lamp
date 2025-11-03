@@ -1,9 +1,9 @@
-use core::cell::Cell;
+use core::cell::{Cell, RefCell};
 
 #[cfg(feature = "defmt")]
-use defmt::{debug, error};
+use defmt::debug;
 #[cfg(feature = "log")]
-use log::{debug, error};
+use log::debug;
 
 use rs_matter_embassy::matter::dm::Cluster;
 use rs_matter_embassy::matter::dm::clusters::level_control::{self, LevelControlHooks};
@@ -19,7 +19,7 @@ use esp_hal::gpio::Input;
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct LedHandler<'a> {
     sender: LedSender<'a>,
-    button_on_off: Cell<Option<Input<'a>>>,
+    button_on_off: RefCell<Input<'a>>,
     // OnOff Attributes
     on_off: Cell<bool>,
     start_up_on_off: Cell<Option<StartUpOnOffEnum>>,
@@ -29,10 +29,10 @@ pub struct LedHandler<'a> {
 }
 
 impl<'a> LedHandler<'a> {
-    pub const fn new(sender: LedSender<'a>, button_on_off: Input<'a>) -> Self {
+    pub fn new(sender: LedSender<'a>, button_on_off: Input<'a>) -> Self {
         Self {
             sender,
-            button_on_off: Cell::new(Some(button_on_off)),
+            button_on_off: RefCell::new(button_on_off),
             on_off: Cell::new(true),
             start_up_on_off: Cell::new(None),
             current_level: Cell::new(Some(42)),
@@ -90,19 +90,16 @@ impl<'a> OnOffHooks for LedHandler<'a> {
     }
 
     async fn run<F: Fn(on_off::OutOfBandMessage)>(&self, notify: F) {
+        // This should never panic since button_on_off is only accessed here.
+        #![allow(clippy::await_holding_refcell_ref)]
+        let mut button_ref = self.button_on_off.borrow_mut();
         loop {
-            let a = self.button_on_off.take();
-            if let Some(mut b) = a {
-                b.wait_for_falling_edge().await;
-                // todo add Toggle to OutOfBandMessage
-                match self.on_off() {
-                    true => notify(on_off::OutOfBandMessage::Off),
-                    false => notify(on_off::OutOfBandMessage::On),
-                };
-                self.button_on_off.set(Some(b));
-            } else {
-                error!("button_on_off should never be none");
-            }
+            button_ref.wait_for_falling_edge().await;
+            // todo add Toggle to OutOfBandMessage
+            match self.on_off() {
+                true => notify(on_off::OutOfBandMessage::Off),
+                false => notify(on_off::OutOfBandMessage::On),
+            };
         }
     }
 }
