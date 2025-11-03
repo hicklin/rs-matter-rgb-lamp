@@ -12,6 +12,7 @@ use embassy_executor::Spawner;
 use esp_alloc::heap_allocator;
 use esp_backtrace as _;
 use esp_hal::timer::timg::TimerGroup;
+use esp_hal::gpio::{Pull, InputConfig, Input};
 use esp_storage::FlashStorage;
 
 #[cfg(feature = "defmt")]
@@ -139,7 +140,11 @@ async fn main(_s: Spawner) {
     let channel = Channel::<CriticalSectionRawMutex, led_driver::ControlMessage, 4>::new();
     let sender = channel.sender();
 
-    let led_handler = LedHandler::new(sender);
+    let button_on_off = Input::new(
+        peripherals.GPIO7, // Boot button
+        InputConfig::default().with_pull(Pull::Up),
+    );
+    let led_handler = LedHandler::new(sender, button_on_off);
 
     let on_off_handler = OnOffHandler::new(
         Dataver::new_rand(stack.matter().rand()),

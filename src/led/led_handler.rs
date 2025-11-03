@@ -1,8 +1,9 @@
 use core::cell::Cell;
+
 #[cfg(feature = "defmt")]
-use defmt::debug;
+use defmt::{debug, error};
 #[cfg(feature = "log")]
-use log::debug;
+use log::{debug, error};
 
 use rs_matter_embassy::matter::dm::Cluster;
 use rs_matter_embassy::matter::dm::clusters::level_control::{self, LevelControlHooks};
@@ -13,9 +14,12 @@ use rs_matter_embassy::matter::with;
 
 use crate::led::led_driver::{ControlMessage, LedSender};
 
+use esp_hal::gpio::Input;
+
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct LedHandler<'a> {
     sender: LedSender<'a>,
+    button_on_off: Cell<Option<Input<'a>>>,
     // OnOff Attributes
     on_off: Cell<bool>,
     start_up_on_off: Cell<Option<StartUpOnOffEnum>>,
@@ -25,9 +29,10 @@ pub struct LedHandler<'a> {
 }
 
 impl<'a> LedHandler<'a> {
-    pub const fn new(sender: LedSender<'a>) -> Self {
+    pub const fn new(sender: LedSender<'a>, button_on_off: Input<'a>) -> Self {
         Self {
             sender,
+            button_on_off: Cell::new(Some(button_on_off)),
             on_off: Cell::new(true),
             start_up_on_off: Cell::new(None),
             current_level: Cell::new(Some(42)),
@@ -82,6 +87,23 @@ impl<'a> OnOffHooks for LedHandler<'a> {
 
     async fn handle_off_with_effect(&self, _effect: on_off::EffectVariantEnum) {
         // no effect
+    }
+
+    async fn run<F: Fn(on_off::OutOfBandMessage)>(&self, notify: F) {
+        loop {
+            let a = self.button_on_off.take();
+            if let Some(mut b) = a {
+                b.wait_for_falling_edge().await;
+                // todo add Toggle to OutOfBandMessage
+                match self.on_off() {
+                    true => notify(on_off::OutOfBandMessage::Off),
+                    false => notify(on_off::OutOfBandMessage::On),
+                };
+                self.button_on_off.set(Some(b));
+            } else {
+                error!("button_on_off should never be none");
+            }
+        }
     }
 }
 
