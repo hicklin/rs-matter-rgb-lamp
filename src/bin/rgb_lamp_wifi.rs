@@ -16,13 +16,14 @@ use esp_hal::gpio::{Pull, InputConfig, Input};
 use esp_storage::FlashStorage;
 
 #[cfg(feature = "defmt")]
-use defmt::info;
+use defmt::{info, error};
 #[cfg(feature = "log")]
-use log::info;
+use log::{info, error};
 
-use embassy_futures::select::{Either, select};
+use embassy_futures::select::{Either, Either3, select, select3};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel;
+use embassy_time::Timer;
 
 use rs_matter_embassy::epoch::epoch;
 use rs_matter_embassy::matter::dm::clusters::desc::{self, ClusterHandler as _};
@@ -141,7 +142,7 @@ async fn main(_s: Spawner) {
     let sender = channel.sender();
 
     let button_on_off = Input::new(
-        peripherals.GPIO7, // Boot button
+        peripherals.GPIO7,
         InputConfig::default().with_pull(Pull::Up),
     );
     let led_handler = LedHandler::new(sender, button_on_off);
@@ -156,7 +157,7 @@ async fn main(_s: Spawner) {
         LIGHT_ENDPOINT_ID,
         &led_handler,
         AttributeDefaults {
-            on_level: Nullable::some(42),
+            on_level: Nullable::none(),
             options: OptionsBitmap::EXECUTE_IF_OFF,
             ..Default::default()
         },
@@ -235,13 +236,43 @@ async fn main(_s: Spawner) {
     let mut led_task = pin!(led_driver.run());
 
     // == Step 6: ==
+    // Setup reset button
+    let mut button_reset = Input::new(
+        peripherals.GPIO9,
+        InputConfig::default().with_pull(Pull::Up),
+    );
+
+    // Hold for 3 seconds to initiate a factory reset
+    let mut reset_button_task = async || {
+        loop {
+            button_reset.wait_for_falling_edge().await;
+            match select(
+                button_reset.wait_for_rising_edge(), 
+                Timer::after_secs(3)).await {
+                    Either::First(_) => (),
+                    Either::Second(_) => {
+                        info!("Performing factory reset...");
+                        if let Err(e) = persist.reset().await {
+                            error!("Factory reset error: {}", e);
+                        };
+                        // todo reset non-volatile attributes.
+                        // todo Consider adding a `reset()` method to the rs-matter handlers.
+                    },
+                }
+        }
+    };
+
+    // == Step 7: ==
     // Run async tasks
-    match select(&mut matter, &mut led_task).await {
-        Either::First(r) => {
+    match select3(&mut matter, &mut led_task, &mut pin!(reset_button_task())).await {
+        Either3::First(r) => {
             panic!("Matter thread exited! {:?}", r)
         }
-        Either::Second(_) => {
+        Either3::Second(_) => {
             panic!("LED thread exited!")
+        }
+        Either3::Third(_) => {
+            panic!("Reset button thread exited!")
         }
     }
 }
