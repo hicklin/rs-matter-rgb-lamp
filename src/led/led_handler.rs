@@ -1,4 +1,5 @@
 use core::cell::{Cell, RefCell};
+use core::ops::{Add, Mul};
 
 #[cfg(feature = "defmt")]
 use defmt::{debug, error};
@@ -109,12 +110,20 @@ impl<'a> OnOffHooks for LedHandler<'a> {
         #![allow(clippy::await_holding_refcell_ref)]
         let mut button_ref = self.button_on_off.borrow_mut();
         loop {
-            button_ref.wait_for_falling_edge().await;
-            // todo add Toggle to OutOfBandMessage
-            match self.on_off() {
-                true => notify(on_off::OutOfBandMessage::Off),
-                false => notify(on_off::OutOfBandMessage::On),
-            };
+            button_ref.wait_for_any_edge().await;
+            if button_ref.is_low() {
+                // todo add Toggle to OutOfBandMessage
+                match self.on_off() {
+                    true => notify(on_off::OutOfBandMessage::Off),
+                    false => notify(on_off::OutOfBandMessage::On),
+                };
+
+                // Debounce delay
+                Timer::after_millis(50).await;
+            } else {
+                // Debounce delay
+                Timer::after_millis(50).await;
+            }
         }
     }
 }
@@ -187,42 +196,48 @@ impl<'a> LevelControlHooks for LedHandler<'a> {
         let mut pin = self.pin.borrow_mut();
 
         // The min and max values measured by the variable resistor. Obtained empirically.
-        let min: u32 = 2160;
+        let min: u32 = 2300;
         let max: u32 = 4081;
 
-        let threshold: u32 = 15;
-        let mut old_value: u32 = 0;
+        let mut ema_value: u32 = 0;
+        // Alpha = 0.2 means 20% new value, 80% old value (adjustable)
+        let alpha_num = 2; // numerator
+        let alpha_den = 10; // denominator (alpha = 0.2)
+
+        let mut old_value = 0;
 
         loop {
             if let Ok(val) = adc.read_oneshot(&mut pin) {
-                // todo needs a better way to deal with noise
-                let val = if (val as u32) < min + threshold {
-                    min
-                } else {
-                    val as u32
-                };
+                // Exponential moving average calculation
+                ema_value =
+                    ((alpha_num * val as u32) + ((alpha_den - alpha_num) * ema_value)) / alpha_den;
 
-                if val < old_value.saturating_sub(threshold)
-                    || val > old_value.saturating_add(threshold)
-                {
-                    old_value = val;
+                // map the measured value to a level value
+                let value = ema_value
+                    .saturating_sub(min)
+                    .mul(Self::MAX_LEVEL as u32 - Self::MIN_LEVEL as u32)
+                    .div_euclid(max - min)
+                    .add(Self::MIN_LEVEL as u32)
+                    .max(Self::MIN_LEVEL as u32)
+                    .min(Self::MAX_LEVEL as u32);
 
-                    // map the measured value to a level value
-                    let mut value = match (val - min)
-                        .checked_mul(Self::MAX_LEVEL as u32 - Self::MIN_LEVEL as u32)
-                    {
-                        Some(v) => v,
-                        None => {
-                            error!("overflow");
-                            continue;
-                        }
-                    };
-                    value /= max - min;
-                    let value = (value + Self::MIN_LEVEL as u32) as u8;
+                if value != old_value {
+                    // Avoids small changes switching on the light.
+                    if value.abs_diff(old_value) < 5 && !self.on_off() {
+                        Timer::after_millis(50).await;
+                        continue;
+                    }
+
+                    old_value = value;
+
+                    debug!(
+                        "measured_val: {} | ema_val: {} | level: {}",
+                        val, ema_value, value
+                    );
 
                     notify(level_control::OutOfBandMessage::MoveToLevel {
                         with_on_off: true,
-                        level: value,
+                        level: value as u8,
                         transition_time: Some(0),
                         options_mask: OptionsBitmap::default(),
                         options_override: OptionsBitmap::default(),
