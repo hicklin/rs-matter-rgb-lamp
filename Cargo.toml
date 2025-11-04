@@ -8,10 +8,11 @@ name = "rgb_lamp_wifi"
 harness = false
 
 [patch.crates-io]
-rs-matter = { git = "https://github.com/project-chip/rs-matter" }
+# rs-matter = { git = "https://github.com/project-chip/rs-matter" }
 # rs-matter = { git = "https://github.com/sysgrok/rs-matter", branch = "next" }
-# rs-matter = { path = "../rs-matter-hicklin/rs-matter" }
-rs-matter-stack = { git = "https://github.com/sysgrok/rs-matter-stack.git", branch = "next" }
+rs-matter = { path = "../rs-matter-hicklin/rs-matter" }
+# rs-matter-stack = { git = "https://github.com/sysgrok/rs-matter-stack.git", branch = "next" }
+rs-matter-stack = { git = "https://github.com/sysgrok/rs-matter-stack.git", branch = "master" }
 openthread = { git = "https://github.com/sysgrok/openthread.git", branch = "next" }
 esp-backtrace = { git = "https://github.com/esp-rs/esp-hal" }
 esp-hal = { git = "https://github.com/esp-rs/esp-hal" }
@@ -35,12 +36,12 @@ overflow-checks = false
 
 [features]
 default = ["esp32c6", "wifi", "log"]
-esp32 = ["esp-rtos/esp32", "esp-hal/esp32", "esp-backtrace/esp32", "esp-println/esp32", "esp-radio/esp32", "esp-storage/esp32", "esp-bootloader-esp-idf/esp32", "portable-atomic/critical-section", "wifi"]
+esp32 = ["esp-rtos/esp32", "esp-hal/esp32", "esp-backtrace/esp32", "esp-println/esp32", "esp-radio/esp32", "esp-storage/esp32", "esp-bootloader-esp-idf/esp32", "esp-hal-smartled/esp32", "portable-atomic/critical-section", "wifi"]
 esp32c2 = ["esp-rtos/esp32c2", "esp-hal/esp32c2", "esp-backtrace/esp32c2", "esp-println/esp32c2", "esp-radio/esp32c2", "esp-storage/esp32c2", "esp-bootloader-esp-idf/esp32c2", "portable-atomic/critical-section", "wifi"]
-esp32c3 = ["esp-rtos/esp32c3", "esp-hal/esp32c3", "esp-backtrace/esp32c3", "esp-println/esp32c3", "esp-radio/esp32c3", "esp-storage/esp32c3", "esp-bootloader-esp-idf/esp32c3", "portable-atomic/unsafe-assume-single-core", "wifi"]
-esp32c6 = ["esp-rtos/esp32c6", "esp-hal/esp32c6", "esp-backtrace/esp32c6", "esp-println/esp32c6", "esp-radio/esp32c6", "esp-storage/esp32c6", "esp-bootloader-esp-idf/esp32c6", "portable-atomic/critical-section", "wifi"]
-esp32s3 = ["esp-rtos/esp32s3", "esp-hal/esp32s3", "esp-backtrace/esp32s3", "esp-println/esp32s3", "esp-radio/esp32s3", "esp-storage/esp32s3", "esp-bootloader-esp-idf/esp32s3", "portable-atomic/critical-section", "wifi"]
-esp32h2 = ["esp-rtos/esp32h2", "esp-hal/esp32h2", "esp-backtrace/esp32h2", "esp-println/esp32h2", "esp-radio/esp32h2", "esp-storage/esp32h2", "esp-bootloader-esp-idf/esp32h2", "portable-atomic/critical-section", "thread"]
+esp32c3 = ["esp-rtos/esp32c3", "esp-hal/esp32c3", "esp-backtrace/esp32c3", "esp-println/esp32c3", "esp-radio/esp32c3", "esp-storage/esp32c3", "esp-bootloader-esp-idf/esp32c3", "esp-hal-smartled/esp32c3", "portable-atomic/unsafe-assume-single-core", "wifi"]
+esp32c6 = ["esp-rtos/esp32c6", "esp-hal/esp32c6", "esp-backtrace/esp32c6", "esp-println/esp32c6", "esp-radio/esp32c6", "esp-storage/esp32c6", "esp-bootloader-esp-idf/esp32c6", "esp-hal-smartled/esp32c6", "portable-atomic/critical-section", "wifi"]
+esp32s3 = ["esp-rtos/esp32s3", "esp-hal/esp32s3", "esp-backtrace/esp32s3", "esp-println/esp32s3", "esp-radio/esp32s3", "esp-storage/esp32s3", "esp-bootloader-esp-idf/esp32s3", "esp-hal-smartled/esp32s3", "portable-atomic/critical-section", "wifi"]
+esp32h2 = ["esp-rtos/esp32h2", "esp-hal/esp32h2", "esp-backtrace/esp32h2", "esp-println/esp32h2", "esp-radio/esp32h2", "esp-storage/esp32h2", "esp-bootloader-esp-idf/esp32h2", "esp-hal-smartled/esp32h2", "portable-atomic/critical-section", "thread"]
 wifi = ["rs-matter-embassy/embassy-net"]
 thread = ["rs-matter-embassy/openthread"]
 log = ["esp-hal/log-04", "esp-println/log-04", "esp-radio/log-04", "esp-bootloader-esp-idf/log-04", "rs-matter-embassy/log"]
@@ -50,22 +51,21 @@ defmt = ["dep:defmt", "esp-hal/defmt", "esp-println/defmt-espflash", "esp-radio/
 log = "0.4"
 embassy-executor = "0.9"
 esp-backtrace = { version = "0.18", features = ["panic-handler", "println"] }
-esp-hal = { version = "=1.0.0-rc.1", features = ["unstable", "exception-handler"] }
-esp-rtos = { version = "0.1.0", features = ["esp-radio", "embassy"] }
+esp-hal = { version = "1", features = ["unstable", "exception-handler"] }
+esp-rtos = { version = "0.2", features = ["esp-radio", "embassy"] }
 esp-alloc = { version = "0.9" }
 esp-println = { version = "0.16" }
-esp-radio = { version = "0.16", features = ["ble", "unstable"] }
-esp-bootloader-esp-idf = { version = "0.3" }
-rs-matter-embassy = { path = "../rs-matter-embassy-hicklin/rs-matter-embassy", features = ["esp", "kv-blob-store-8192"] }
-# rs-matter-embassy = { git = "https://github.com/sysgrok/rs-matter-embassy.git", features = ["esp", "kv-blob-store-8192"] }
+esp-radio = { version = "0.17", features = ["ble", "unstable"] }
+esp-bootloader-esp-idf = { version = "0.4" }
+# rs-matter-embassy = { path = "../rs-matter-embassy-hicklin/rs-matter-embassy", features = ["esp", "kv-blob-store-16384"] }
+rs-matter-embassy = { git = "https://github.com/sysgrok/rs-matter-embassy.git", features = ["esp", "kv-blob-store-16384"] }
 tinyrlibc = { version = "0.5", default-features = false, features = ["utoa", "strtoul"] }
 embassy-sync = "0.7"
 embassy-futures = "0.1"
 embassy-time = "0.5"
 static_cell = "2"
 portable-atomic = "1"
-# esp-hal-smartled needs to be update to work with esp-hal v1.0.0-rc.1. See PR [#53](https://github.com/esp-rs/esp-hal-community/pull/53)
-esp-hal-smartled = { git = "https://github.com/badamson/esp-hal-community.git", branch = "updates-for-esp-hal-1.0.0-rc.1", features=["esp32c6"]}
+esp-hal-smartled = { git = "https://github.com/esp-rs/esp-hal-community.git", rev = "ab4316534d90e3a12785907f043f6899faee0f20"}
 smart-leds = "0.4.0"
 palette = {version = "0.7.6", default-features = false, features = ["libm"]}
 rs-matter = { version = "0.1", default-features = false }

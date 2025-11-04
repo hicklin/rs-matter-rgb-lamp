@@ -80,8 +80,8 @@ impl<'a> Driver<'a> {
     // Sets the LED to the current values.
     async fn update_led(&mut self) -> Result<(), LedAdapterError> {
         debug!(
-            "Updating LED: colour: {:?} | level: {}",
-            self.colour, self.level
+            "Updating LED: colour: {}, {}, {} | level: {}",
+            self.colour.r, self.colour.g, self.colour.b, self.level
         );
         self.led
             .write(brightness(gamma([self.colour].into_iter()), self.level))
