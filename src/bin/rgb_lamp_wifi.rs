@@ -50,7 +50,7 @@ use rs_matter_embassy::wireless::{EmbassyWifi, EmbassyWifiMatterStack};
 
 use embassy_embedded_hal::adapter::BlockingAsync;
 
-use matter_rgb_lamp::data_model::color_control::{self, ClusterHandler as _, ColorControlHandler};
+use matter_rgb_lamp::dm::color_control::{self, ClusterHandler as _, ColorControlHandler};
 use matter_rgb_lamp::led::led_driver;
 
 use matter_rgb_lamp::led::led_handler::LedHandler;

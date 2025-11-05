@@ -8,8 +8,8 @@ use rs_matter_embassy::matter::error::{Error, ErrorCode};
 use rs_matter_embassy::matter::tlv::Nullable;
 use rs_matter_embassy::matter::with;
 
-pub use crate::data_model::clusters::color_control::ClusterHandler;
-use crate::data_model::clusters::color_control::*;
+pub use crate::dm::clusters::color_control::ClusterHandler;
+use crate::dm::clusters::color_control::*;
 
 pub struct ColorControlCluster<T: ColorControlHooks> {
     dataver: Dataver,
