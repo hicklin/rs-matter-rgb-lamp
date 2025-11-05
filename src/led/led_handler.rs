@@ -10,7 +10,7 @@ use rs_matter::dm::clusters::level_control::OptionsBitmap;
 use rs_matter_embassy::matter::dm::Cluster;
 use rs_matter_embassy::matter::dm::clusters::level_control::{self, LevelControlHooks};
 use rs_matter_embassy::matter::dm::clusters::on_off::{self, OnOffHooks, StartUpOnOffEnum};
-use rs_matter_embassy::matter::error::Error;
+use rs_matter_embassy::matter::error::{Error, ErrorCode};
 use rs_matter_embassy::matter::tlv::Nullable;
 use rs_matter_embassy::matter::with;
 
@@ -249,5 +249,28 @@ impl<'a> LevelControlHooks for LedHandler<'a> {
 
             Timer::after_millis(50).await;
         }
+    }
+}
+
+use crate::dm::color_control::ColorControlHooks;
+use palette::{FromColor, Srgb, Yxy};
+use palette::white_point::D65;
+
+impl<'a> ColorControlHooks for LedHandler<'a> {
+    fn set_color(&self, x: u16, y: u16) -> Result<(), Error> {
+        let x_f32 = x as f32 / 65536.0;
+        let y_f32 = y as f32 / 65536.0;
+
+        let yxy: Yxy<D65, f32> = Yxy::new(x_f32, y_f32, 1.0);
+
+        let srgb: Srgb<f32> = Srgb::from_color(yxy);
+
+        let r = (srgb.red * 255.0) as u8;
+        let g = (srgb.green * 255.0) as u8;
+        let b = (srgb.blue * 255.0) as u8;
+
+        self.sender
+            .try_send(ControlMessage::SetColour { r, g, b })
+            .map_err(|_| ErrorCode::Busy.into())
     }
 }

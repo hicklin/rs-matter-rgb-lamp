@@ -89,6 +89,6 @@ When `rs-matter` doesn't yet provide a cluster implementation (such as ColorCont
 This project uses pattern A to implement the device-specific logic, omitting Matter-specific logic where not necessary.
 
 The [`import!()`](src/dm/clusters.rs#L3) macro is used to generate all the necessary types and traits.
-A `ColorControlHandler` is implemented similar to `rs-matter`.
+A [`ColorControlHandler`](src/dm/color_control.rs#L13) is implemented similar to `rs-matter`.
 
 Note: If adopting the same implementation patterns described in [`rs-matter` docs](https://github.com/project-chip/rs-matter/blob/main/docs/Matter_clusters-Implementation_usage_and_support.md), full cluster implementations can be submitted to `rs-matter`.

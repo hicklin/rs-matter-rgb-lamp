@@ -50,7 +50,7 @@ use rs_matter_embassy::wireless::{EmbassyWifi, EmbassyWifiMatterStack};
 
 use embassy_embedded_hal::adapter::BlockingAsync;
 
-use matter_rgb_lamp::dm::color_control::{self, ClusterHandler as _, ColorControlHandler};
+use matter_rgb_lamp::dm::color_control::{self, ClusterHandler as _};
 use matter_rgb_lamp::led::led_driver;
 
 use matter_rgb_lamp::led::led_handler::LedHandler;
@@ -172,8 +172,6 @@ async fn main(_s: Spawner) {
     on_off_handler.init(Some(&level_control_handler));
     level_control_handler.init(Some(&on_off_handler));
 
-    let color_control_handler = ColorControlHandler::new(sender);
-
     // Chain our endpoint clusters
     let handler = EmptyHandler
         .chain(
@@ -193,12 +191,12 @@ async fn main(_s: Spawner) {
         .chain(
             EpClMatcher::new(
                 Some(LIGHT_ENDPOINT_ID),
-                Some(color_control::ColorControlCluster::<ColorControlHandler>::CLUSTER.id),
+                Some(color_control::ColorControlHandler::<LedHandler>::CLUSTER.id),
             ),
             Async(
-                color_control::ColorControlCluster::new(
+                color_control::ColorControlHandler::new(
                     Dataver::new_rand(stack.matter().rand()),
-                    color_control_handler,
+                    &led_handler,
                 )
                 .adapt(),
             ),
@@ -302,7 +300,7 @@ const NODE: Node = Node {
                 desc::DescHandler::CLUSTER,
                 OnOffHandler::<LedHandler, LedHandler>::CLUSTER,
                 LevelControlHandler::<LedHandler, LedHandler>::CLUSTER
-                color_control::ColorControlCluster::<ColorControlHandler>::CLUSTER
+                color_control::ColorControlHandler::<LedHandler>::CLUSTER
             ),
         },
     ],

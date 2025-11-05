@@ -1,6 +1,5 @@
 use core::cell::Cell;
 use log::{info, warn};
-use palette::white_point::D65;
 
 use rs_matter_embassy::matter::dm::clusters::level_control::OptionsBitmap;
 use rs_matter_embassy::matter::dm::{Cluster, Dataver, InvokeContext, ReadContext, WriteContext};
@@ -11,7 +10,7 @@ use rs_matter_embassy::matter::with;
 pub use crate::dm::clusters::color_control::ClusterHandler;
 use crate::dm::clusters::color_control::*;
 
-pub struct ColorControlCluster<T: ColorControlHooks> {
+pub struct ColorControlHandler<T: ColorControlHooks> {
     dataver: Dataver,
     handler: T,
     current_x: Cell<u16>,
@@ -38,7 +37,7 @@ pub struct ColorControlCluster<T: ColorControlHooks> {
     start_up_color_temperature_mireds: u16,
 }
 
-impl<T: ColorControlHooks> ColorControlCluster<T> {
+impl<T: ColorControlHooks> ColorControlHandler<T> {
     pub fn new(dataver: Dataver, handler: T) -> Self {
         Self {
             dataver,
@@ -72,7 +71,7 @@ impl<T: ColorControlHooks> ColorControlCluster<T> {
     }
 }
 
-impl<T: ColorControlHooks> ClusterHandler for ColorControlCluster<T> {
+impl<T: ColorControlHooks> ClusterHandler for ColorControlHandler<T> {
     #[doc = "The cluster-metadata corresponding to this handler trait."]
     const CLUSTER: Cluster<'static> = FULL_CLUSTER
         .with_revision(7)
@@ -429,36 +428,11 @@ pub trait ColorControlHooks {
     fn set_color(&self, x: u16, y: u16) -> Result<(), Error>;
 }
 
-// todo move to a separate file
-
-use crate::led::led_driver::{ControlMessage, LedSender};
-use palette::{FromColor, Srgb, Yxy};
-
-pub struct ColorControlHandler<'a> {
-    sender: LedSender<'a>,
-}
-
-impl<'a> ColorControlHandler<'a> {
-    pub fn new(sender: LedSender<'a>) -> Self {
-        Self { sender }
-    }
-}
-
-impl<'a> ColorControlHooks for ColorControlHandler<'a> {
+impl<T> ColorControlHooks for &T
+where
+    T: ColorControlHooks,
+{
     fn set_color(&self, x: u16, y: u16) -> Result<(), Error> {
-        let x_f32 = x as f32 / 65536.0;
-        let y_f32 = y as f32 / 65536.0;
-
-        let yxy: Yxy<D65, f32> = Yxy::new(x_f32, y_f32, 1.0);
-
-        let srgb: Srgb<f32> = Srgb::from_color(yxy);
-
-        let r = (srgb.red * 255.0) as u8;
-        let g = (srgb.green * 255.0) as u8;
-        let b = (srgb.blue * 255.0) as u8;
-
-        self.sender
-            .try_send(ControlMessage::SetColour { r, g, b })
-            .map_err(|_| ErrorCode::Busy.into())
+        (*self).set_color(x, y)
     }
 }
