@@ -64,7 +64,7 @@ This enables us implement device-specific logic via the Hooks traits and get all
 
 Hooks traits for different clusters can be implemented by the same structure.
 This allows us to consolidate device-specific functionality into one structure.
-This pattern can be observed in the [`LedHandler` struct](src/led/led_handler.rs#L27).
+This pattern can be observed in the [`LedHandler` struct](src/led/led_handler.rs#L31).
 The `LedHandler` instance is then passed by reference into the cluster handler constructors.
 
 ### Asynchronous hardware integration
@@ -77,7 +77,7 @@ Additionally, these `run` methods provide a closure allowing users to send out-o
 These messages offer a way to utilise the same Matter-defined logic for non-Matter interactions, be it hardware, vendor app, etc.
 This ensures a consistent behaviour across all interactions.
 
-In this project, the [`run`](src/led/led_handler.rs#L108) method provided by the `OnOffHooks` trait is used to wait on the on/off button interrupt and send out-of-band messages to the Matter-defined state machine.
+In this project, the [`run`](src/led/led_handler.rs#L112) method provided by the `OnOffHooks` trait is used to wait on the on/off button interrupt and send out-of-band messages to the Matter-defined state machine.
 The [`run`](src/led/led_handler.rs#L193) method provided by the `LevelControlHooks` trait is used to monitor potentiometer changes and update the Matter state-machine accordingly.
 This ensures that state transition behaviour is consistent irrespective of the interaction method used.
 

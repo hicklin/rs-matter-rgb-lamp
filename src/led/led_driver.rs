@@ -22,13 +22,14 @@ use smart_leds::{
     hsv::{Hsv, hsv2rgb},
 };
 
+/// Defines the behaviour of the light.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Mode {
+    /// The light remains solid and not changing.
     Solid,
-    // Duration represents the time to travers from min to max brightness.
+    /// Duration represents the time to travers from min to max brightness.
     Pulse { duration: Duration },
-    ColourPulsing { pulse_duration: u8 },
-    // Duration represents the time to complete one cycle.
+    /// Duration represents the time to complete one colour cycle.
     ColourChanging { duration: Duration },
 }
 
@@ -82,7 +83,9 @@ impl<'a> Driver<'a> {
                 b: 216,
             }),
             level: Cell::new(150),
-            mode: Mode::Solid,
+            mode: Mode::ColourChanging {
+                duration: Duration::from_secs(10),
+            },
         }
     }
 
@@ -184,14 +187,12 @@ impl<'a> Driver<'a> {
                     Timer::after(duration.checked_div(max_level as u32).unwrap()).await
                 }
             }
-            Mode::ColourPulsing { pulse_duration: _ } => {
-                // todo implement
-                core::future::pending::<()>().await
-            }
             Mode::ColourChanging { duration } => {
                 // Limit minimum to 500 milliseconds
                 let duration = duration.max(Duration::from_millis(500));
 
+                // todo I don't like this colour transition. It spends too much time on the primary colours.
+                // Consider alternative algorithms.
                 let mut hue: u8 = 0;
 
                 loop {
