@@ -23,6 +23,10 @@ use esp_hal::peripherals::{ADC1, GPIO4};
 
 use embassy_time::Timer;
 
+use crate::dm::color_control::ColorControlHooks;
+use palette::white_point::D65;
+use palette::{FromColor, Srgb, Yxy};
+
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct LedHandler<'a> {
     sender: LedSender<'a>,
@@ -247,10 +251,6 @@ impl<'a> LevelControlHooks for LedHandler<'a> {
         }
     }
 }
-
-use crate::dm::color_control::ColorControlHooks;
-use palette::{FromColor, Srgb, Yxy};
-use palette::white_point::D65;
 
 impl<'a> ColorControlHooks for LedHandler<'a> {
     fn set_color(&self, x: u16, y: u16) -> Result<(), Error> {
