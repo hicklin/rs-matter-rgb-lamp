@@ -112,11 +112,7 @@ impl<'a> OnOffHooks for LedHandler<'a> {
         loop {
             button_ref.wait_for_any_edge().await;
             if button_ref.is_low() {
-                // todo add Toggle to OutOfBandMessage
-                match self.on_off() {
-                    true => notify(on_off::OutOfBandMessage::Off),
-                    false => notify(on_off::OutOfBandMessage::On),
-                };
+                notify(on_off::OutOfBandMessage::Toggle);
 
                 // Debounce delay
                 Timer::after_millis(50).await;
