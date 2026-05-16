@@ -25,6 +25,44 @@ _fig 1_: The wiring used for the above mentioned hardware.
 
 ## Build and run
 
+### Nix environment
+
+This projects uses nix flakes to ensure reproducible builds across development and CI environments.
+The build environment is defined in the `flake.nix` file.
+The `flake.lock` file ensures that same versions are use across builds.
+
+`flake.nix` is pinned to a specific unstable commit of nixpkgs and rust nightly.
+
+To setup a shell with this environment:
+
+```bash
+nix develop
+```
+
+or, if you are using a different shell:
+
+```bash
+nix develop -c zsh
+```
+
+> [!NOTE]
+> If you are not running on a nix system, look at [installing the nix package manager for your system](https://nix.dev/install-nix.html).
+
+#### Updating the environment
+
+##### Nix
+
+To update the nixpkgs commit from where packages are installed, change the commit hash of `nixpkgs.url` in the `flake.nix` `input` section.
+
+> [!IMPORTANT]
+> Use a commit hash that has been built by [hydra](https://hydra.nixos.org/jobset/nixpkgs/trunk/evals).
+> This provides prebuilt binaries, significantly speeding up CI.
+> You can get the commit sha from the `inputs` tab of the chosen hydra evaluation.
+
+##### Rust
+
+To update the rust nightly version, change the `rustNightlyDate` date in `flake.nix`. Available nightlies can be found at https://rust-lang.github.io/rustup-components-history.
+
 ### Build
 
 The default features build for `esp32c6`.
