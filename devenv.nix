@@ -3,9 +3,9 @@
 {
   cachix.enable = false;
 
-  packages = [ 
-    pkgs.git 
-    pkgs.cargo-espflash
+  packages = [
+    pkgs.git
+    pkgs.espflash
     pkgs.cargo-expand
     pkgs.esptool
   ];

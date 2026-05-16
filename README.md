@@ -3,7 +3,7 @@
 This projects builds a Matter enabled RGB lamp.
 
 The purpose of this project is to understand and demonstrate the user experience of the
-Rust implementation of Matter (`rs-matter`) and identify pain points for future 
+Rust implementation of Matter (`rs-matter`) and identify pain points for future
 improvement of `rs-matter` and related crates.
 
 This projects uses [nix devenv](https://devenv.sh/) to maintain a reproducible setup.
@@ -56,7 +56,7 @@ The following demonstrate how the [usage patters provided by `rs-matter`](https:
 
 ### Single struct, multiple hooks
 
-This project uses three clusters to control the light; OnOff for switching the light on and off, 
+This project uses three clusters to control the light; OnOff for switching the light on and off,
 LevelControl for adjusting the light brightness and ColorControl for changing the color of the light.
 
 `rs-matter` provides full implementations of the OnOff and LevelControl clusters via pattern C.

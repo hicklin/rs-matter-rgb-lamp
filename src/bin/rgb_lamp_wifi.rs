@@ -255,7 +255,7 @@ async fn main(_s: Spawner) {
                 Either::Second(_) => {
                     info!("Performing factory reset...");
                     if let Err(e) = persist.reset().await {
-                        error!("Factory reset error: {}", e);
+                        error!("Factory reset error1: {}", e);
                     };
                     // todo reset non-volatile attributes.
                     // todo Consider adding a `reset()` method to the rs-matter handlers.

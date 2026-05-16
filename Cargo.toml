@@ -12,7 +12,7 @@ harness = false
 # rs-matter = { git = "https://github.com/sysgrok/rs-matter", branch = "next" }
 rs-matter = { path = "../rs-matter-hicklin/rs-matter" }
 # rs-matter-stack = { git = "https://github.com/sysgrok/rs-matter-stack.git", branch = "next" }
-rs-matter-stack = { git = "https://github.com/sysgrok/rs-matter-stack.git", branch = "master" }
+rs-matter-stack = { git = "https://github.com/sysgrok/rs-matter-stack.git", rev = "f631ec6f073065fc6af8bfa482e4358d2da8756e" }
 openthread = { git = "https://github.com/sysgrok/openthread.git", branch = "next" }
 
 [profile.dev]
