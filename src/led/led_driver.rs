@@ -16,7 +16,7 @@ use esp_hal::{
     rmt::{PulseCode, Rmt},
     time::Rate,
 };
-use esp_hal_smartled::{LedAdapterError, SmartLedsAdapterAsync, buffer_size_async};
+use esp_hal_smartled::{LedAdapterError, SmartLedsAdapterAsync};
 use smart_leds::{
     RGB8, SmartLedsWriteAsync, brightness, gamma,
     hsv::{Hsv, hsv2rgb},
@@ -45,16 +45,21 @@ pub enum ControlMessage {
 pub type LedSender<'a> = Sender<'a, CriticalSectionRawMutex, ControlMessage, 4>;
 pub type LedReceiver<'a> = Receiver<'a, CriticalSectionRawMutex, ControlMessage, 4>;
 
-pub struct Driver<'a> {
-    led: RefCell<SmartLedsAdapterAsync<'a, 25>>,
+pub struct Driver<'a, const N: usize> {
+    led: RefCell<SmartLedsAdapterAsync<'a, N>>,
     receiver: LedReceiver<'a>,
     level: Cell<u8>,
     colour: Cell<RGB8>,
     mode: Mode,
 }
 
-impl<'a> Driver<'a> {
-    pub fn new(rmt: peripherals::RMT<'a>, pin: AnyPin<'a>, receiver: LedReceiver<'a>) -> Self {
+impl<'a, const N: usize> Driver<'a, N> {
+    pub fn new(
+        rmt: peripherals::RMT<'a>,
+        pin: AnyPin<'a>,
+        receiver: LedReceiver<'a>,
+        rmt_buffer: &'a mut [PulseCode; N],
+    ) -> Self {
         // Setup the LED
         // Configure RMT (Remote Control Transceiver) peripheral globally
         // <https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/peripherals/rmt.html>
@@ -68,7 +73,6 @@ impl<'a> Driver<'a> {
         // We use one of the RMT channels to instantiate a `SmartLedsAdapterAsync` which can
         // be used directly with all `smart_led` implementations
         let rmt_channel = rmt.channel0;
-        let rmt_buffer = [PulseCode::default(); buffer_size_async(1)];
 
         // Each devkit uses a unique GPIO for the RGB LED, so in order to support
         // all chips we must unfortunately use `#[cfg]`s:
@@ -100,7 +104,6 @@ impl<'a> Driver<'a> {
             self.level.get()
         );
 
-        #[allow(clippy::await_holding_refcell_ref)]
         match self.led.try_borrow_mut() {
             Ok(mut led) => {
                 // This operation should be quick

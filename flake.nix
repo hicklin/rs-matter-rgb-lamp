@@ -18,7 +18,7 @@
         # Configuration: Rust nightly version
         # Update this date to change the Rust nightly version used across the project
         # Available nightlies: https://rust-lang.github.io/rustup-components-history/
-        rustNightlyDate = "2026-05-15";
+        rustNightlyDate = "2026-04-30";
 
         pkgs = import nixpkgs {
           inherit system;

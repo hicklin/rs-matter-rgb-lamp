@@ -1,22 +1,20 @@
 use core::cell::Cell;
 use log::{info, warn};
 
-use rs_matter_embassy::matter::dm::clusters::level_control::OptionsBitmap;
 use rs_matter_embassy::matter::dm::{Cluster, Dataver, InvokeContext, ReadContext, WriteContext};
 use rs_matter_embassy::matter::error::{Error, ErrorCode};
 use rs_matter_embassy::matter::tlv::Nullable;
 use rs_matter_embassy::matter::with;
 
-pub use crate::dm::clusters::color_control::ClusterHandler;
-use crate::dm::clusters::color_control::*;
+use rs_matter_embassy::matter::dm::clusters::decl::color_control::{ClusterHandler, *};
 
 pub struct ColorControlHandler<T: ColorControlHooks> {
     dataver: Dataver,
     handler: T,
     current_x: Cell<u16>,
     current_y: Cell<u16>,
-    color_mode: ColorMode,
-    options: OptionsBitmap,
+    color_mode: ColorModeEnum,
+    options: Cell<OptionsBitmap>,
     number_of_primes: u8,
     primary_1_x: u16,
     primary_1_y: u16,
@@ -27,8 +25,8 @@ pub struct ColorControlHandler<T: ColorControlHooks> {
     primary_3_x: u16,
     primary_3_y: u16,
     primary_3_intensity: u8,
-    // enhanced_color_mode: , // todo EnhancedColorModeEnum is not defined.
-    // color_capabilities: ColorCapabilitiesBitmap,
+    enhanced_color_mode: EnhancedColorModeEnum,
+    color_capabilities: ColorCapabilitiesBitmap,
     remaining_time: u16,
     color_temperature_mireds: u16,
     color_temp_physical_max_mireds: u16,
@@ -44,8 +42,8 @@ impl<T: ColorControlHooks> ColorControlHandler<T> {
             handler,
             current_x: Cell::new(39518), // white
             current_y: Cell::new(21233),
-            color_mode: ColorMode::CurrentXAndCurrentY,
-            options: OptionsBitmap::empty(),
+            color_mode: ColorModeEnum::CurrentXAndCurrentY,
+            options: Cell::new(OptionsBitmap::empty()),
             number_of_primes: 3,
             primary_1_x: 0,
             primary_1_y: 0,
@@ -56,6 +54,9 @@ impl<T: ColorControlHooks> ColorControlHandler<T> {
             primary_3_x: 0,
             primary_3_y: 0,
             primary_3_intensity: 0,
+            enhanced_color_mode: EnhancedColorModeEnum::CurrentHueAndCurrentSaturation,
+            color_capabilities: ColorCapabilitiesBitmap::XY
+                | ColorCapabilitiesBitmap::COLOR_TEMPERATURE,
             remaining_time: 0,
             color_temperature_mireds: 0,
             color_temp_physical_max_mireds: 0,
@@ -206,14 +207,14 @@ impl<T: ColorControlHooks> ClusterHandler for ColorControlHandler<T> {
         Ok(Nullable::some(self.start_up_color_temperature_mireds))
     }
 
-    fn color_mode(&self, _ctx: impl ReadContext) -> Result<u8, Error> {
+    fn color_mode(&self, _ctx: impl ReadContext) -> Result<ColorModeEnum, Error> {
         info!("ColorControl: Called color_mode()");
-        Ok(self.color_mode as u8)
+        Ok(self.color_mode)
     }
 
-    fn options(&self, _ctx: impl ReadContext) -> Result<u8, Error> {
+    fn options(&self, _ctx: impl ReadContext) -> Result<OptionsBitmap, Error> {
         info!("ColorControl: Called options()");
-        Ok(self.options.bits())
+        Ok(self.options.get())
     }
 
     fn number_of_primaries(&self, _ctx: impl ReadContext) -> Result<Nullable<u8>, Error> {
@@ -221,20 +222,19 @@ impl<T: ColorControlHooks> ClusterHandler for ColorControlHandler<T> {
         Ok(Nullable::some(self.number_of_primes))
     }
 
-    fn enhanced_color_mode(&self, _ctx: impl ReadContext) -> Result<u8, Error> {
+    fn enhanced_color_mode(&self, _ctx: impl ReadContext) -> Result<EnhancedColorModeEnum, Error> {
         info!("ColorControl: Called enhanced_color_mode()");
-        Ok(1) // todo needs fixing when enhanced color mode bitmap is included
+        Ok(self.enhanced_color_mode)
     }
 
-    fn color_capabilities(&self, _ctx: impl ReadContext) -> Result<u16, Error> {
+    fn color_capabilities(&self, _ctx: impl ReadContext) -> Result<ColorCapabilitiesBitmap, Error> {
         info!("ColorControl: Called color_capabilities()");
-        Ok(ColorCapabilities::XY_ATTRIBUTES_SUPPORTED.bits()
-            | ColorCapabilities::COLOR_TEMPERATURE_SUPPORTED.bits())
+        Ok(self.color_capabilities)
     }
 
-    fn set_options(&self, _ctx: impl WriteContext, _value: u8) -> Result<(), Error> {
+    fn set_options(&self, _ctx: impl WriteContext, value: OptionsBitmap) -> Result<(), Error> {
         info!("ColorControl: Called set_options()");
-        // todo is `&self` correct? We should be able to modify self if we want to set a value.
+        self.options.set(value);
         warn!("Not yet implemented. Doing nothing.");
         Ok(())
     }
