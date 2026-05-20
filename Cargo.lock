@@ -352,7 +352,7 @@ checksum = "211713d2e9fb4793ce4360a712c0764264aff6be48932ccf02ca2a331c0436a9"
 dependencies = [
  "btuuid",
  "defmt 1.0.1",
- "embassy-sync 0.7.2",
+ "embassy-sync 0.8.0",
  "embedded-io 0.7.1",
  "embedded-io-async 0.7.0",
  "futures-intrusive",
@@ -2958,6 +2958,8 @@ dependencies = [
  "log",
  "palette",
  "portable-atomic",
+ "rand_chacha",
+ "rand_core 0.9.3",
  "rs-matter-embassy",
  "smart-leds",
  "static_cell",

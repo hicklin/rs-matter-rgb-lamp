@@ -78,3 +78,7 @@ smart-leds = "0.4.0"
 palette = {version = "0.7.6", default-features = false, features = ["libm"]}
 # rs-matter = { version = "0.1", default-features = false }
 defmt = { version = "0.3", optional = true }
+
+# Used for the RNG. Remove when esp_hal::rng::TrngSource does not consume any required peripherals.
+rand_core = "0.9"
+rand_chacha = { version = "0.9", default-features = false }
