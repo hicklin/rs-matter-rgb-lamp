@@ -104,7 +104,6 @@ impl<'a, const N: usize> Driver<'a, N> {
             self.level.get()
         );
 
-        #[allow(clippy::await_holding_refcell_ref)]
         match self.led.try_borrow_mut() {
             Ok(mut led) => {
                 // This operation should be quick
