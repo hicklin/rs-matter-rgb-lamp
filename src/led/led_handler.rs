@@ -6,10 +6,11 @@ use defmt::{debug, error};
 #[cfg(feature = "log")]
 use log::{debug, error};
 
-use rs_matter::dm::clusters::level_control::OptionsBitmap;
 use rs_matter_embassy::matter::dm::Cluster;
-use rs_matter_embassy::matter::dm::clusters::level_control::{self, LevelControlHooks};
-use rs_matter_embassy::matter::dm::clusters::on_off::{self, OnOffHooks, StartUpOnOffEnum};
+use rs_matter_embassy::matter::dm::clusters::app::{
+    level_control::{self, LevelControlHooks, OptionsBitmap},
+    on_off::{self, OnOffHooks, StartUpOnOffEnum},
+};
 use rs_matter_embassy::matter::error::{Error, ErrorCode};
 use rs_matter_embassy::matter::tlv::Nullable;
 use rs_matter_embassy::matter::with;
