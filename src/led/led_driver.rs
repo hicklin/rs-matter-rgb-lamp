@@ -54,7 +54,12 @@ pub struct Driver<'a, const N: usize> {
 }
 
 impl<'a, const N: usize> Driver<'a, N> {
-    pub fn new(rmt: peripherals::RMT<'a>, pin: AnyPin<'a>, receiver: LedReceiver<'a>, rmt_buffer: &'a mut [PulseCode; N]) -> Self {
+    pub fn new(
+        rmt: peripherals::RMT<'a>,
+        pin: AnyPin<'a>,
+        receiver: LedReceiver<'a>,
+        rmt_buffer: &'a mut [PulseCode; N],
+    ) -> Self {
         // Setup the LED
         // Configure RMT (Remote Control Transceiver) peripheral globally
         // <https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/peripherals/rmt.html>

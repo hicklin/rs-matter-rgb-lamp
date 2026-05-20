@@ -6,7 +6,7 @@ use rs_matter_embassy::matter::error::{Error, ErrorCode};
 use rs_matter_embassy::matter::tlv::Nullable;
 use rs_matter_embassy::matter::with;
 
-use rs_matter_embassy::matter::dm::clusters::decl::color_control::{*, ClusterHandler};
+use rs_matter_embassy::matter::dm::clusters::decl::color_control::{ClusterHandler, *};
 
 pub struct ColorControlHandler<T: ColorControlHooks> {
     dataver: Dataver,
@@ -55,7 +55,8 @@ impl<T: ColorControlHooks> ColorControlHandler<T> {
             primary_3_y: 0,
             primary_3_intensity: 0,
             enhanced_color_mode: EnhancedColorModeEnum::CurrentHueAndCurrentSaturation,
-            color_capabilities: ColorCapabilitiesBitmap::XY | ColorCapabilitiesBitmap::COLOR_TEMPERATURE,
+            color_capabilities: ColorCapabilitiesBitmap::XY
+                | ColorCapabilitiesBitmap::COLOR_TEMPERATURE,
             remaining_time: 0,
             color_temperature_mireds: 0,
             color_temp_physical_max_mireds: 0,

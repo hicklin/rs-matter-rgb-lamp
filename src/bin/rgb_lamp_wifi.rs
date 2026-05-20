@@ -14,33 +14,33 @@ use esp_hal::timer::timg::TimerGroup;
 use esp_metadata_generated::memory_range;
 
 #[cfg(feature = "defmt")]
-use defmt::{info};
+use defmt::info;
 #[cfg(feature = "log")]
-use log::{info};
+use log::info;
 
 use rand_core::SeedableRng as _;
 use rs_matter_embassy::epoch::epoch;
-use rs_matter_embassy::matter::crypto::{default_crypto, Crypto};
+use rs_matter_embassy::matter::crypto::{Crypto, default_crypto};
 // Data Model imports
 use rs_matter_embassy::matter::dm::clusters::{
-    desc::{self, ClusterHandler as _},
     app::level_control::{
         self, AttributeDefaults, ClusterAsyncHandler as _, LevelControlHandler, OptionsBitmap,
     },
-    app::on_off::{
-        self, ClusterAsyncHandler as _, OnOffHandler,
-    },
+    app::on_off::{self, ClusterAsyncHandler as _, OnOffHandler},
+    desc::{self, ClusterHandler as _},
 };
-use rs_matter_embassy::matter::dm::devices::test::{DAC_PRIVKEY, TEST_DEV_ATT, TEST_DEV_COMM, TEST_DEV_DET};
+use rs_matter_embassy::matter::dm::devices::test::{
+    DAC_PRIVKEY, TEST_DEV_ATT, TEST_DEV_COMM, TEST_DEV_DET,
+};
 use rs_matter_embassy::matter::dm::{
     Async, Dataver, DeviceType, EmptyHandler, Endpoint, EpClMatcher, Node,
 };
 
-use rs_matter_embassy::matter::tlv::Nullable;
+use rs_matter_embassy::matter::dm::clusters::decl::color_control::ClusterHandler as _;
 use rs_matter_embassy::matter::persist::DummyKvBlobStore;
+use rs_matter_embassy::matter::tlv::Nullable;
 use rs_matter_embassy::matter::utils::init::InitMaybeUninit;
 use rs_matter_embassy::matter::{clusters, devices};
-use rs_matter_embassy::matter::dm::clusters::decl::color_control::ClusterHandler as _;
 use rs_matter_embassy::stack::rand::reseeding_csprng;
 use rs_matter_embassy::wireless::esp::EspWifiDriver;
 use rs_matter_embassy::wireless::{EmbassyWifi, EmbassyWifiMatterStack};
@@ -59,8 +59,8 @@ use matter_rgb_lamp::led::led_handler::LedHandler;
 
 use static_cell::StaticCell;
 // LED setup
-use esp_hal_smartled::buffer_size_async;
 use esp_hal::rmt::PulseCode;
+use esp_hal_smartled::buffer_size_async;
 
 extern crate alloc;
 
@@ -145,7 +145,6 @@ async fn main(_s: Spawner) {
     );
     let mut weak_rand = crypto.weak_rand().unwrap();
 
-
     // == Step 3: ==
     // Set up Matter data model handler
     let channel = Channel::<CriticalSectionRawMutex, led_driver::ControlMessage, 4>::new();
@@ -215,7 +214,6 @@ async fn main(_s: Spawner) {
             Async(desc::DescHandler::new(Dataver::new_rand(&mut weak_rand)).adapt()),
         );
 
-
     // == Step 4: ==
     // Create a KV BLOB store and load any previously saved state of `rs-matter`
     // `SeqMapKvBlobStore` saves to a user-supplied NOR Flash region
@@ -256,7 +254,12 @@ async fn main(_s: Spawner) {
     static RMT_BUFFER: StaticCell<[PulseCode; buffer_size_async(NUM_LEDS)]> = StaticCell::new();
     let rmt_buffer = RMT_BUFFER.init([PulseCode::default(); buffer_size_async(NUM_LEDS)]);
 
-    let led_driver = led_driver::Driver::new(peripherals.RMT, peripherals.GPIO8.into(), receiver, rmt_buffer);
+    let led_driver = led_driver::Driver::new(
+        peripherals.RMT,
+        peripherals.GPIO8.into(),
+        receiver,
+        rmt_buffer,
+    );
     let mut led_task = pin!(led_driver.run());
 
     // == Step 7: ==
