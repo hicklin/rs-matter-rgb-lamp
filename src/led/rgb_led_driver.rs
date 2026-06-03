@@ -46,6 +46,8 @@ pub type LedSender<'a> = Sender<'a, CriticalSectionRawMutex, ControlMessage, 4>;
 pub type LedReceiver<'a> = Receiver<'a, CriticalSectionRawMutex, ControlMessage, 4>;
 
 impl<'a> crate::led::LedSend for LedSender<'a> {
+    const MAX_LED_LEVEL: u8 = 254;
+
     fn try_set_on(&self, on: bool) {
         let _ = self.try_send(ControlMessage::SetOn(on));
     }

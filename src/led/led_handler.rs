@@ -96,7 +96,6 @@ impl<'a, S: LedSend> OnOffHooks for LedHandler<'a, S> {
     fn set_on_off(&self, on: bool) {
         self.sender.try_set_on(on);
         self.on_off.set(on);
-        debug!("OnOff state set to: {}", on);
     }
 
     fn start_up_on_off(&self) -> Nullable<on_off::StartUpOnOffEnum> {
@@ -137,7 +136,7 @@ impl<'a, S: LedSend> OnOffHooks for LedHandler<'a, S> {
 impl<'a, S: LedSend> LevelControlHooks for LedHandler<'a, S> {
     const MIN_LEVEL: u8 = 1;
 
-    const MAX_LEVEL: u8 = 254;
+    const MAX_LEVEL: u8 = S::MAX_LED_LEVEL;
 
     const FASTEST_RATE: u8 = 50;
 

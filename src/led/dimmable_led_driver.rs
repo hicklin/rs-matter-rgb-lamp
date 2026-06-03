@@ -19,6 +19,8 @@ use defmt::{error, warn};
 #[cfg(feature = "log")]
 use log::{error, warn};
 
+use crate::led::LedSend;
+
 /// Defines the behaviour of the light.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Mode {
@@ -40,6 +42,8 @@ pub type LedSender<'a> = Sender<'a, CriticalSectionRawMutex, ControlMessage, 4>;
 pub type LedReceiver<'a> = Receiver<'a, CriticalSectionRawMutex, ControlMessage, 4>;
 
 impl<'a> crate::led::LedSend for LedSender<'a> {
+    const MAX_LED_LEVEL: u8 = 100;
+
     fn try_set_on(&self, on: bool) {
         let _ = self.try_send(ControlMessage::SetOn(on));
     }
@@ -75,13 +79,11 @@ impl<'a> DimmableLedDriver<'a> {
     fn update_led(&self) {
         match self.led.try_borrow_mut() {
             Ok(led) => {
-                let level = match self.invert {
-                    true => 0xff - self.level.get(),
+                let pwm_level = match self.invert {
+                    true => LedSender::MAX_LED_LEVEL - self.level.get(),
                     false => self.level.get(),
                 };
-                // todo is this needed?
-                let level = level*100/255;
-                if let Err(_) = led.set_duty(level) {
+                if let Err(_) = led.set_duty(pwm_level as u8) {
                     error!("unable to update LED. Skipping");
                 }
             }
@@ -97,9 +99,17 @@ impl<'a> DimmableLedDriver<'a> {
             match select(self.receiver.receive(), self.run_mode()).await {
                 Either::First(command) => {
                     match command {
-                        ControlMessage::SetOn(_on) => {
-                            // todo physically switch the LED off, i.e. cut power.
-                            // unsure if this is possible for the esp32c6.
+                        ControlMessage::SetOn(on) => {
+                            match on {
+                                true => {
+                                    self.level.set(1);
+                                    self.update_led();
+                                },
+                                false => {
+                                    self.level.set(0);
+                                    self.update_led();
+                                },
+                            }
                         }
                         ControlMessage::SetBrightness(level) => {
                             self.level.set(level);

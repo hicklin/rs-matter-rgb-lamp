@@ -260,7 +260,7 @@ async fn main(_s: Spawner) {
     }).expect("Failed to configure PWM channel");
 
     // TODO: call DimmableLedDriver::new(ledc, receiver);
-    let led_driver = DimmableLedDriver::new(channel0, receiver, true);
+    let led_driver = DimmableLedDriver::new(channel0, receiver, false);
 
     let mut led_task = pin!(led_driver.run());
 
