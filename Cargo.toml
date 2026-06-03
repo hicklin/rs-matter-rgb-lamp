@@ -6,6 +6,11 @@ edition = "2024"
 [[bin]]
 name = "rgb_lamp_wifi"
 harness = false
+required-features = ["rgb"]
+
+[[bin]]
+name = "dimmable_lamp_wifi"
+harness = false
 
 [patch.crates-io]
 # rs-matter = { git = "https://github.com/project-chip/rs-matter" }
@@ -39,6 +44,7 @@ overflow-checks = false
 
 [features]
 default = ["esp32c6", "wifi", "log"]
+rgb = []
 esp32 = ["esp-rtos/esp32", "esp-hal/esp32", "esp-backtrace/esp32", "esp-println/esp32", "esp-radio/esp32", "esp-storage/esp32", "esp-bootloader-esp-idf/esp32", "esp-metadata-generated/esp32", "esp-hal-smartled/esp32", "portable-atomic/critical-section", "wifi"]
 esp32c2 = ["esp-rtos/esp32c2", "esp-hal/esp32c2", "esp-backtrace/esp32c2", "esp-println/esp32c2", "esp-radio/esp32c2", "esp-storage/esp32c2", "esp-bootloader-esp-idf/esp32c2", "esp-metadata-generated/esp32c2", "portable-atomic/critical-section", "wifi"]
 esp32c3 = ["esp-rtos/esp32c3", "esp-hal/esp32c3", "esp-backtrace/esp32c3", "esp-println/esp32c3", "esp-radio/esp32c3", "esp-storage/esp32c3", "esp-bootloader-esp-idf/esp32c3", "esp-metadata-generated/esp32c3", "esp-hal-smartled/esp32c3", "portable-atomic/unsafe-assume-single-core", "wifi"]

@@ -11,11 +11,9 @@ use rs_matter_embassy::matter::dm::clusters::app::{
     level_control::{self, LevelControlHooks, OptionsBitmap},
     on_off::{self, OnOffHooks, StartUpOnOffEnum},
 };
-use rs_matter_embassy::matter::error::{Error, ErrorCode};
+use rs_matter_embassy::matter::error::Error;
 use rs_matter_embassy::matter::tlv::Nullable;
 use rs_matter_embassy::matter::with;
-
-use crate::led::led_driver::{ControlMessage, LedSender};
 
 use esp_hal::Blocking;
 use esp_hal::analog::adc::{Adc, AdcPin};
@@ -24,9 +22,22 @@ use esp_hal::peripherals::{ADC1, GPIO4};
 
 use embassy_time::Timer;
 
+#[cfg(not(feature = "rgb"))]
+use crate::led::dimmable_led_driver::{ControlMessage, LedSender};
+#[cfg(feature = "rgb")]
+use crate::led::led_driver::{ControlMessage, LedSender};
+
+#[cfg(feature = "rgb")]
 use crate::dm::color_control::ColorControlHooks;
-use palette::white_point::D65;
-use palette::{FromColor, Srgb, Yxy};
+#[cfg(feature = "rgb")]
+use rs_matter_embassy::matter::error::ErrorCode;
+#[cfg(feature = "rgb")]
+use palette::{
+    white_point::D65,
+    FromColor,
+    Srgb,
+    Yxy,
+};
 
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct LedHandler<'a> {
@@ -253,6 +264,7 @@ impl<'a> LevelControlHooks for LedHandler<'a> {
     }
 }
 
+#[cfg(feature = "rgb")]
 impl<'a> ColorControlHooks for LedHandler<'a> {
     fn set_color(&self, x: u16, y: u16) -> Result<(), Error> {
         let x_f32 = x as f32 / 65536.0;
