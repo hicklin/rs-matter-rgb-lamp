@@ -108,7 +108,7 @@ impl<'a, const N: usize> Driver<'a, N> {
             Ok(mut led) => {
                 // This operation should be quick
                 led.write(brightness(
-                    gamma([self.colour.get()].into_iter()),
+                    gamma(core::iter::repeat(self.colour.get()).take(N / 25)),
                     self.level.get(),
                 ))
                 .await

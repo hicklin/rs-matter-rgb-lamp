@@ -73,6 +73,7 @@ static_cell = "2"
 portable-atomic = "1"
 # TODO: When rs-matter-embassy moves to esp-hal v1.1, replace the source of esp-hal-smartled with "https://github.com/esp-rs/esp-hal-community.git".
 # Note: Also requires merging of this smartled PR: https://github.com/esp-rs/esp-hal-community/pull/62
+# esp-hal-smartled = { path = "/home/hicklin/Documents/tmp/esp-hal-community/esp-hal-smartled"}
 esp-hal-smartled = { git = "https://github.com/hicklin/esp-hal-community.git", branch = "rs-matter-package-match" }
 smart-leds = "0.4.0"
 palette = {version = "0.7.6", default-features = false, features = ["libm"]}
