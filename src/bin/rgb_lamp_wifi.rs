@@ -54,7 +54,7 @@ use embassy_sync::channel::Channel;
 use embassy_time::Timer;
 
 use matter_rgb_lamp::dm::color_control;
-use matter_rgb_lamp::led::led_driver;
+use matter_rgb_lamp::led::rgb_led_driver::{self, LedSender};
 use matter_rgb_lamp::led::led_handler::LedHandler;
 
 use static_cell::StaticCell;
@@ -147,7 +147,7 @@ async fn main(_s: Spawner) {
 
     // == Step 3: ==
     // Set up Matter data model handler
-    let channel = Channel::<CriticalSectionRawMutex, led_driver::ControlMessage, 4>::new();
+    let channel = Channel::<CriticalSectionRawMutex, rgb_led_driver::ControlMessage, 4>::new();
     let sender = channel.sender();
 
     let button_on_off = Input::new(
@@ -185,21 +185,21 @@ async fn main(_s: Spawner) {
         .chain(
             EpClMatcher::new(
                 Some(LIGHT_ENDPOINT_ID),
-                Some(OnOffHandler::<LedHandler, LedHandler>::CLUSTER.id),
+                Some(OnOffHandler::<LedHandler<LedSender>, LedHandler<LedSender>>::CLUSTER.id),
             ),
             on_off::HandlerAsyncAdaptor(&on_off_handler),
         )
         .chain(
             EpClMatcher::new(
                 Some(LIGHT_ENDPOINT_ID),
-                Some(LevelControlHandler::<LedHandler, LedHandler>::CLUSTER.id),
+                Some(LevelControlHandler::<LedHandler<LedSender>, LedHandler<LedSender>>::CLUSTER.id),
             ),
             level_control::HandlerAsyncAdaptor(&level_control_handler),
         )
         .chain(
             EpClMatcher::new(
                 Some(LIGHT_ENDPOINT_ID),
-                Some(color_control::ColorControlHandler::<LedHandler>::CLUSTER.id),
+                Some(color_control::ColorControlHandler::<LedHandler<LedSender>>::CLUSTER.id),
             ),
             Async(
                 color_control::ColorControlHandler::new(
@@ -254,7 +254,7 @@ async fn main(_s: Spawner) {
     static RMT_BUFFER: StaticCell<[PulseCode; buffer_size_async(NUM_LEDS)]> = StaticCell::new();
     let rmt_buffer = RMT_BUFFER.init([PulseCode::default(); buffer_size_async(NUM_LEDS)]);
 
-    let led_driver = led_driver::Driver::new(
+    let led_driver = rgb_led_driver::Driver::new(
         peripherals.RMT,
         peripherals.GPIO8.into(),
         receiver,
@@ -315,9 +315,9 @@ const NODE: Node = Node {
             devices!(DEV_TYPE_ENHANCED_COLOR_LIGHT),
             clusters!(
                 desc::DescHandler::CLUSTER,
-                OnOffHandler::<LedHandler, LedHandler>::CLUSTER,
-                LevelControlHandler::<LedHandler, LedHandler>::CLUSTER
-                color_control::ColorControlHandler::<LedHandler>::CLUSTER
+                OnOffHandler::<LedHandler<LedSender>, LedHandler<LedSender>>::CLUSTER,
+                LevelControlHandler::<LedHandler<LedSender>, LedHandler<LedSender>>::CLUSTER
+                color_control::ColorControlHandler::<LedHandler<LedSender>>::CLUSTER
             ),
         ),
     ],

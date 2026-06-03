@@ -45,6 +45,21 @@ pub enum ControlMessage {
 pub type LedSender<'a> = Sender<'a, CriticalSectionRawMutex, ControlMessage, 4>;
 pub type LedReceiver<'a> = Receiver<'a, CriticalSectionRawMutex, ControlMessage, 4>;
 
+impl<'a> crate::led::LedSend for LedSender<'a> {
+    fn try_set_on(&self, on: bool) {
+        let _ = self.try_send(ControlMessage::SetOn(on));
+    }
+    fn try_set_brightness(&self, level: u8) -> Result<(), ()> {
+        self.try_send(ControlMessage::SetBrightness(level)).map_err(|_| ())
+    }
+}
+
+impl<'a> crate::led::ColorLedSend for LedSender<'a> {
+    fn try_set_colour(&self, r: u8, g: u8, b: u8) -> Result<(), ()> {
+        self.try_send(ControlMessage::SetColour { r, g, b }).map_err(|_| ())
+    }
+}
+
 pub struct Driver<'a, const N: usize> {
     led: RefCell<SmartLedsAdapterAsync<'a, N>>,
     receiver: LedReceiver<'a>,

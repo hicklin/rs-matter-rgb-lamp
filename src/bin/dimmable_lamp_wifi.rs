@@ -52,7 +52,7 @@ use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel;
 use embassy_time::Timer;
 
-use matter_rgb_lamp::led::dimmable_led_driver::{self, DimmableLedDriver};
+use matter_rgb_lamp::led::dimmable_led_driver::{self, DimmableLedDriver, LedSender};
 use matter_rgb_lamp::led::led_handler::LedHandler;
 
 // LED setup
@@ -190,14 +190,14 @@ async fn main(_s: Spawner) {
         .chain(
             EpClMatcher::new(
                 Some(LIGHT_ENDPOINT_ID),
-                Some(OnOffHandler::<LedHandler, LedHandler>::CLUSTER.id),
+                Some(OnOffHandler::<LedHandler<LedSender>, LedHandler<LedSender>>::CLUSTER.id),
             ),
             on_off::HandlerAsyncAdaptor(&on_off_handler),
         )
         .chain(
             EpClMatcher::new(
                 Some(LIGHT_ENDPOINT_ID),
-                Some(LevelControlHandler::<LedHandler, LedHandler>::CLUSTER.id),
+                Some(LevelControlHandler::<LedHandler<LedSender>, LedHandler<LedSender>>::CLUSTER.id),
             ),
             level_control::HandlerAsyncAdaptor(&level_control_handler),
         )
@@ -317,8 +317,8 @@ const NODE: Node = Node {
             devices!(DEV_TYPE_ENHANCED_COLOR_LIGHT),
             clusters!(
                 desc::DescHandler::CLUSTER,
-                OnOffHandler::<LedHandler, LedHandler>::CLUSTER,
-                LevelControlHandler::<LedHandler, LedHandler>::CLUSTER
+                OnOffHandler::<LedHandler<LedSender>, LedHandler<LedSender>>::CLUSTER,
+                LevelControlHandler::<LedHandler<LedSender>, LedHandler<LedSender>>::CLUSTER
             ),
         ),
     ],
