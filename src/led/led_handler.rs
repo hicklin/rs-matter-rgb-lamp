@@ -11,11 +11,9 @@ use rs_matter_embassy::matter::dm::clusters::app::{
     level_control::{self, LevelControlHooks, OptionsBitmap},
     on_off::{self, OnOffHooks, StartUpOnOffEnum},
 };
-use rs_matter_embassy::matter::error::{Error, ErrorCode};
+use rs_matter_embassy::matter::error::Error;
 use rs_matter_embassy::matter::tlv::Nullable;
 use rs_matter_embassy::matter::with;
-
-use crate::led::led_driver::{ControlMessage, LedSender};
 
 use esp_hal::Blocking;
 use esp_hal::analog::adc::{Adc, AdcPin};
@@ -24,13 +22,20 @@ use esp_hal::peripherals::{ADC1, GPIO4};
 
 use embassy_time::Timer;
 
+use crate::led::{ColorLedSend, LedSend};
+
 use crate::dm::color_control::ColorControlHooks;
-use palette::white_point::D65;
-use palette::{FromColor, Srgb, Yxy};
+use rs_matter_embassy::matter::error::ErrorCode;
+use palette::{
+    white_point::D65,
+    FromColor,
+    Srgb,
+    Yxy,
+};
 
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct LedHandler<'a> {
-    sender: LedSender<'a>,
+pub struct LedHandler<'a, S: LedSend> {
+    sender: S,
     button_on_off: RefCell<Input<'a>>,
     adc: RefCell<Adc<'a, ADC1<'a>, Blocking>>,
     pin: RefCell<AdcPin<GPIO4<'a>, ADC1<'a>>>, // concrete types used to simplify example
@@ -42,9 +47,9 @@ pub struct LedHandler<'a> {
     startup_current_level: Cell<Option<u8>>,
 }
 
-impl<'a> LedHandler<'a> {
+impl<'a, S: LedSend> LedHandler<'a, S> {
     pub fn new(
-        sender: LedSender<'a>,
+        sender: S,
         button_on_off: Input<'a>,
         adc: Adc<'a, ADC1<'a>, Blocking>,
         pin: AdcPin<GPIO4<'a>, ADC1<'a>>,
@@ -62,7 +67,7 @@ impl<'a> LedHandler<'a> {
     }
 }
 
-impl<'a> OnOffHooks for LedHandler<'a> {
+impl<'a, S: LedSend> OnOffHooks for LedHandler<'a, S> {
     const CLUSTER: Cluster<'static> = on_off::FULL_CLUSTER
         .with_revision(6)
         .with_features(on_off::Feature::LIGHTING.bits())
@@ -89,9 +94,8 @@ impl<'a> OnOffHooks for LedHandler<'a> {
 
     // todo this method should probably return an error `.map_err(|_| Error::new(ErrorCode::Busy))`
     fn set_on_off(&self, on: bool) {
-        let _ = self.sender.try_send(ControlMessage::SetOn(on));
+        self.sender.try_set_on(on);
         self.on_off.set(on);
-        debug!("OnOff state set to: {}", on);
     }
 
     fn start_up_on_off(&self) -> Nullable<on_off::StartUpOnOffEnum> {
@@ -129,10 +133,10 @@ impl<'a> OnOffHooks for LedHandler<'a> {
     }
 }
 
-impl<'a> LevelControlHooks for LedHandler<'a> {
+impl<'a, S: LedSend> LevelControlHooks for LedHandler<'a, S> {
     const MIN_LEVEL: u8 = 1;
 
-    const MAX_LEVEL: u8 = 254;
+    const MAX_LEVEL: u8 = S::MAX_LED_LEVEL;
 
     const FASTEST_RATE: u8 = 50;
 
@@ -168,7 +172,7 @@ impl<'a> LevelControlHooks for LedHandler<'a> {
     fn set_device_level(&self, level: u8) -> Result<Option<u8>, ()> {
         debug!("LedHandler::set_device_level: level {}", level);
         self.sender
-            .try_send(ControlMessage::SetBrightness(level))
+            .try_set_brightness(level)
             .map_err(|_| ())?;
         Ok(Some(level))
     }
@@ -253,7 +257,7 @@ impl<'a> LevelControlHooks for LedHandler<'a> {
     }
 }
 
-impl<'a> ColorControlHooks for LedHandler<'a> {
+impl<'a, S: ColorLedSend> ColorControlHooks for LedHandler<'a, S> {
     fn set_color(&self, x: u16, y: u16) -> Result<(), Error> {
         let x_f32 = x as f32 / 65536.0;
         let y_f32 = y as f32 / 65536.0;
@@ -267,7 +271,7 @@ impl<'a> ColorControlHooks for LedHandler<'a> {
         let b = (srgb.blue * 255.0) as u8;
 
         self.sender
-            .try_send(ControlMessage::SetColour { r, g, b })
+            .try_set_colour(r, g, b)
             .map_err(|_| ErrorCode::Busy.into())
     }
 }

@@ -36,7 +36,6 @@ use rs_matter_embassy::matter::dm::{
     Async, Dataver, DeviceType, EmptyHandler, Endpoint, EpClMatcher, Node,
 };
 
-use rs_matter_embassy::matter::dm::clusters::decl::color_control::ClusterHandler as _;
 use rs_matter_embassy::matter::persist::DummyKvBlobStore;
 use rs_matter_embassy::matter::tlv::Nullable;
 use rs_matter_embassy::matter::utils::init::InitMaybeUninit;
@@ -53,14 +52,22 @@ use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel;
 use embassy_time::Timer;
 
-use matter_rgb_lamp::dm::color_control;
-use matter_rgb_lamp::led::rgb_led_driver::{self, LedSender};
+use matter_rgb_lamp::led::dimmable_led_driver::{self, DimmableLedDriver, LedSender};
 use matter_rgb_lamp::led::led_handler::LedHandler;
 
-use static_cell::StaticCell;
 // LED setup
-use esp_hal::rmt::PulseCode;
-use esp_hal_smartled::buffer_size_async;
+use esp_hal::{
+    time::Rate,
+    gpio::{
+        DriveMode,
+    },
+    ledc::{
+        Ledc,
+        LowSpeed,
+        timer::{self, TimerIFace},
+        channel::{self, ChannelIFace},
+    }
+};
 
 extern crate alloc;
 
@@ -75,8 +82,6 @@ macro_rules! mk_static {
         alloc::boxed::Box::leak(alloc::boxed::Box::<$t>::new_uninit())
     }};
 }
-
-const NUM_LEDS: usize = 1;
 
 /// The amount of memory for allocating all `rs-matter-stack` futures created during
 /// the execution of the `run*` methods.
@@ -136,7 +141,7 @@ async fn main(_s: Spawner) {
         EmbassyWifiMatterStack::init(&TEST_DEV_DET, TEST_DEV_COMM, &TEST_DEV_ATT, epoch),
     );
 
-    // TODO: Change this to using Trng when it's got an API that dose not consume any peripherals that we need!
+    // TODO: Change this to using Trng when it's got an API that does not consume any peripherals that we need!
     let mut seed = [0u8; 32];
     esp_hal::rng::Rng::new().read(&mut seed);
     let crypto = default_crypto(
@@ -147,7 +152,7 @@ async fn main(_s: Spawner) {
 
     // == Step 3: ==
     // Set up Matter data model handler
-    let channel = Channel::<CriticalSectionRawMutex, rgb_led_driver::ControlMessage, 4>::new();
+    let channel = Channel::<CriticalSectionRawMutex, dimmable_led_driver::ControlMessage, 4>::new();
     let sender = channel.sender();
 
     let button_on_off = Input::new(
@@ -197,19 +202,6 @@ async fn main(_s: Spawner) {
             level_control::HandlerAsyncAdaptor(&level_control_handler),
         )
         .chain(
-            EpClMatcher::new(
-                Some(LIGHT_ENDPOINT_ID),
-                Some(color_control::ColorControlHandler::<LedHandler<LedSender>>::CLUSTER.id),
-            ),
-            Async(
-                color_control::ColorControlHandler::new(
-                    Dataver::new_rand(&mut weak_rand),
-                    &led_handler,
-                )
-                .adapt(),
-            ),
-        )
-        .chain(
             EpClMatcher::new(Some(LIGHT_ENDPOINT_ID), Some(desc::DescHandler::CLUSTER.id)),
             Async(desc::DescHandler::new(Dataver::new_rand(&mut weak_rand)).adapt()),
         );
@@ -251,15 +243,25 @@ async fn main(_s: Spawner) {
     // Setup the LED driver
     let receiver = channel.receiver();
 
-    static RMT_BUFFER: StaticCell<[PulseCode; buffer_size_async(NUM_LEDS)]> = StaticCell::new();
-    let rmt_buffer = RMT_BUFFER.init([PulseCode::default(); buffer_size_async(NUM_LEDS)]);
+    let mut ledc = Ledc::new(peripherals.LEDC);
+    ledc.set_global_slow_clock(esp_hal::ledc::LSGlobalClkSource::APBClk);
+    let mut lstimer0 = ledc.timer::<LowSpeed>(timer::Number::Timer0);
+    lstimer0.configure(timer::config::Config {
+        duty: timer::config::Duty::Duty5Bit,
+        clock_source: timer::LSClockSource::APBClk,
+        frequency: Rate::from_khz(24),
+    }).expect("Failed to configure PWM low speed timer");
 
-    let led_driver = rgb_led_driver::Driver::new(
-        peripherals.RMT,
-        peripherals.GPIO8.into(),
-        receiver,
-        rmt_buffer,
-    );
+    let mut channel0 = ledc.channel(channel::Number::Channel0, peripherals.GPIO6);
+    channel0.configure(channel::config::Config {
+        timer: &lstimer0,
+        duty_pct: 10,
+        drive_mode: DriveMode::PushPull,
+    }).expect("Failed to configure PWM channel");
+
+    // TODO: call DimmableLedDriver::new(ledc, receiver);
+    let led_driver = DimmableLedDriver::new(channel0, receiver, false);
+
     let mut led_task = pin!(led_driver.run());
 
     // == Step 7: ==
@@ -317,7 +319,6 @@ const NODE: Node = Node {
                 desc::DescHandler::CLUSTER,
                 OnOffHandler::<LedHandler<LedSender>, LedHandler<LedSender>>::CLUSTER,
                 LevelControlHandler::<LedHandler<LedSender>, LedHandler<LedSender>>::CLUSTER
-                color_control::ColorControlHandler::<LedHandler<LedSender>>::CLUSTER
             ),
         ),
     ],

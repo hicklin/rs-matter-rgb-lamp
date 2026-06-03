@@ -7,6 +7,10 @@ edition = "2024"
 name = "rgb_lamp_wifi"
 harness = false
 
+[[bin]]
+name = "dimmable_lamp_wifi"
+harness = false
+
 [patch.crates-io]
 # rs-matter = { git = "https://github.com/project-chip/rs-matter" }
 rs-matter = { git = "https://github.com/sysgrok/rs-matter", branch = "next" }
