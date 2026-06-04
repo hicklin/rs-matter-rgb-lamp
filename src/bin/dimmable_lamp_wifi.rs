@@ -247,9 +247,9 @@ async fn main(_s: Spawner) {
     ledc.set_global_slow_clock(esp_hal::ledc::LSGlobalClkSource::APBClk);
     let mut lstimer0 = ledc.timer::<LowSpeed>(timer::Number::Timer0);
     lstimer0.configure(timer::config::Config {
-        duty: timer::config::Duty::Duty5Bit,
+        duty: timer::config::Duty::Duty12Bit,
         clock_source: timer::LSClockSource::APBClk,
-        frequency: Rate::from_khz(24),
+        frequency: Rate::from_khz(5),
     }).expect("Failed to configure PWM low speed timer");
 
     let mut channel0 = ledc.channel(channel::Number::Channel0, peripherals.GPIO6);

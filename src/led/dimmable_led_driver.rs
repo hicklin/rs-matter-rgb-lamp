@@ -56,6 +56,7 @@ pub struct DimmableLedDriver<'a> {
     led: RefCell<Channel<'a, LowSpeed>>,
     receiver: LedReceiver<'a>,
     level: Cell<u8>,
+    last_level: Cell<u8>, // Last level set by the user.
     mode: Mode,
     invert: bool
 }
@@ -69,7 +70,8 @@ impl<'a> DimmableLedDriver<'a> {
         Self {
             led: RefCell::new(channel),
             receiver,
-            level: Cell::new(150),
+            level: Cell::new(70),
+            last_level: Cell::new(70),
             mode: Mode::Solid,
             invert,
         }
@@ -103,9 +105,13 @@ impl<'a> DimmableLedDriver<'a> {
                             match on {
                                 true => {
                                     self.level.set(1);
+                                    // Uncomment to enable pulsing behaviour.
+                                    // self.mode = Mode::Pulse{duration: Duration::from_secs(5)};
                                     self.update_led();
                                 },
                                 false => {
+                                    // Sets the mode to solid when off to
+                                    self.mode = Mode::Solid;
                                     self.level.set(0);
                                     self.update_led();
                                 },
@@ -113,6 +119,7 @@ impl<'a> DimmableLedDriver<'a> {
                         }
                         ControlMessage::SetBrightness(level) => {
                             self.level.set(level);
+                            self.last_level.set(level);
                             self.update_led();
                         }
                         ControlMessage::SetMode(mode) => {
@@ -134,32 +141,41 @@ impl<'a> DimmableLedDriver<'a> {
     }
 
     async fn run_mode(&self) {
-        match self.mode {
-            Mode::Solid => core::future::pending::<()>().await,
-            Mode::Pulse { duration } => {
-                // Limit minimum to 500 milliseconds
-                let duration = duration.max(Duration::from_millis(500));
+        loop {
+            match self.mode {
+                Mode::Solid => {
+                    Timer::after(Duration::from_millis(200)).await
+                },
+                Mode::Pulse { duration } => {
+                    // Limit minimum to 500 milliseconds
+                    let duration = duration.max(Duration::from_millis(500));
+                    let mut direction_up = false;
 
-                let max_level = self.level.get();
-                let mut direction_up = true;
-
-                loop {
-                    match direction_up {
-                        true => {
-                            self.level.set(self.level.get().saturating_add(1));
-                            if self.level.get() >= max_level {
-                                direction_up = false;
+                    loop {
+                        let max_level = self.last_level.get();
+                        match direction_up {
+                            true => {
+                                self.level.set(self.level.get().saturating_add(1));
+                                if self.level.get() >= max_level {
+                                    direction_up = false;
+                                }
+                            }
+                            false => {
+                                self.level.set(self.level.get().saturating_sub(1));
+                                if self.level.get() <= 1 {
+                                    direction_up = true;
+                                }
                             }
                         }
-                        false => {
-                            self.level.set(self.level.get().saturating_sub(1));
-                            if self.level.get() <= 1 {
-                                direction_up = true;
-                            }
+                        self.update_led();
+                        Timer::after(duration.checked_div(max_level as u32).unwrap()).await;
+
+                        // Break this look if mode has changed.
+                        match self.mode {
+                            Mode::Pulse { duration: _ } => continue,
+                            _ => break,
                         }
                     }
-                    self.update_led();
-                    Timer::after(duration.checked_div(max_level as u32).unwrap()).await
                 }
             }
         }
