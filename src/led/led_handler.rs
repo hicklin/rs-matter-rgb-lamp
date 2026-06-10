@@ -1,11 +1,11 @@
 use core::cell::{Cell, RefCell};
-use core::ops::{Add, Mul};
 
 #[cfg(feature = "defmt")]
 use defmt::{debug, error};
 #[cfg(feature = "log")]
-use log::{debug, error};
+use log::{debug, info};
 
+use rotary_encoder_embedded::quadrature::QuadratureTableMode;
 use rs_matter_embassy::matter::dm::Cluster;
 use rs_matter_embassy::matter::dm::clusters::app::{
     level_control::{self, LevelControlHooks, OptionsBitmap},
@@ -15,12 +15,11 @@ use rs_matter_embassy::matter::error::Error;
 use rs_matter_embassy::matter::tlv::Nullable;
 use rs_matter_embassy::matter::with;
 
-use esp_hal::Blocking;
-use esp_hal::analog::adc::{Adc, AdcPin};
 use esp_hal::gpio::Input;
-use esp_hal::peripherals::{ADC1, GPIO4};
+use rotary_encoder_embedded::{Direction, RotaryEncoder};
 
-use embassy_time::Timer;
+use embassy_time::{Duration, Timer};
+use embassy_futures::select::select;
 
 use crate::led::{ColorLedSend, LedSend};
 
@@ -37,8 +36,7 @@ use palette::{
 pub struct LedHandler<'a, S: LedSend> {
     sender: S,
     button_on_off: RefCell<Input<'a>>,
-    adc: RefCell<Adc<'a, ADC1<'a>, Blocking>>,
-    pin: RefCell<AdcPin<GPIO4<'a>, ADC1<'a>>>, // concrete types used to simplify example
+    encoder: RefCell<RotaryEncoder<QuadratureTableMode, Input<'a>, Input<'a>>>,
     // OnOff Attributes
     on_off: Cell<bool>,
     start_up_on_off: Cell<Option<StartUpOnOffEnum>>,
@@ -51,14 +49,17 @@ impl<'a, S: LedSend> LedHandler<'a, S> {
     pub fn new(
         sender: S,
         button_on_off: Input<'a>,
-        adc: Adc<'a, ADC1<'a>, Blocking>,
-        pin: AdcPin<GPIO4<'a>, ADC1<'a>>,
+        rotary_dt: Input<'a>,
+        rotary_clk: Input<'a>,
     ) -> Self {
+
+
+        let encoder = RotaryEncoder::new(rotary_dt, rotary_clk).into_quadrature_table_mode(1);
+
         Self {
             sender,
             button_on_off: RefCell::new(button_on_off),
-            adc: RefCell::new(adc),
-            pin: RefCell::new(pin),
+            encoder: RefCell::new(encoder),
             on_off: Cell::new(true),
             start_up_on_off: Cell::new(None),
             current_level: Cell::new(Some(42)),
@@ -120,6 +121,7 @@ impl<'a, S: LedSend> OnOffHooks for LedHandler<'a, S> {
         let mut button_ref = self.button_on_off.borrow_mut();
         loop {
             button_ref.wait_for_any_edge().await;
+            info!("button triggered");
             if button_ref.is_low() {
                 notify(on_off::OutOfBandMessage::Toggle);
 
@@ -197,62 +199,37 @@ impl<'a, S: LedSend> LevelControlHooks for LedHandler<'a, S> {
 
     async fn run<F: Fn(level_control::OutOfBandMessage)>(&self, notify: F) {
         #![allow(clippy::await_holding_refcell_ref)]
-        let mut adc = self.adc.borrow_mut();
-        let mut pin = self.pin.borrow_mut();
-
-        // The min and max values measured by the variable resistor. Obtained empirically.
-        let min: u32 = 2300;
-        let max: u32 = 4081;
-
-        let mut ema_value: u32 = 0;
-        // Alpha = 0.2 means 20% new value, 80% old value (adjustable)
-        let alpha_num = 2; // numerator
-        let alpha_den = 10; // denominator (alpha = 0.2)
-
-        let mut old_value = 0;
+        let mut encoder = self.encoder.borrow_mut();
+        let increment = 5;
 
         loop {
-            if let Ok(val) = adc.read_oneshot(&mut pin) {
-                // Exponential moving average calculation
-                ema_value =
-                    ((alpha_num * val as u32) + ((alpha_den - alpha_num) * ema_value)) / alpha_den;
 
-                // map the measured value to a level value
-                let value = ema_value
-                    .saturating_sub(min)
-                    .mul(Self::MAX_LEVEL as u32 - Self::MIN_LEVEL as u32)
-                    .div_euclid(max - min)
-                    .add(Self::MIN_LEVEL as u32)
-                    .max(Self::MIN_LEVEL as u32)
-                    .min(Self::MAX_LEVEL as u32);
+            let mut current_level = self.current_level().unwrap_or(0);
+            let (dt, clk) = encoder.pins_mut();
+            select(dt.wait_for_any_edge(), clk.wait_for_any_edge()).await;
 
-                if value != old_value {
-                    // Avoids small changes switching on the light.
-                    if value.abs_diff(old_value) < 5 && !self.on_off() {
-                        Timer::after_millis(50).await;
-                        continue;
-                    }
-
-                    old_value = value;
-
-                    debug!(
-                        "measured_val: {} | ema_val: {} | level: {}",
-                        val, ema_value, value
-                    );
-
-                    notify(level_control::OutOfBandMessage::MoveToLevel {
-                        with_on_off: true,
-                        level: value as u8,
-                        transition_time: Some(0),
-                        options_mask: OptionsBitmap::default(),
-                        options_override: OptionsBitmap::default(),
-                    })
-                }
-            } else {
-                error!("Error reading level");
+            match encoder.update() {
+                Direction::None => {
+                    info!("Encoder triggered: None");
+                    continue;
+                },
+                Direction::Clockwise => {
+                    info!("Encoder triggered: Clockwise");
+                    current_level = Self::MAX_LEVEL.min(current_level.saturating_add(increment))
+                },
+                Direction::Anticlockwise => {
+                    info!("Encoder triggered: Anti Clockwise");
+                    current_level = Self::MIN_LEVEL.max(current_level.saturating_sub(increment))
+                },
             }
 
-            Timer::after_millis(50).await;
+            notify(level_control::OutOfBandMessage::MoveToLevel {
+                with_on_off: true,
+                level: current_level,
+                transition_time: Some(0),
+                options_mask: OptionsBitmap::default(),
+                options_override: OptionsBitmap::default(),
+            });
         }
     }
 }

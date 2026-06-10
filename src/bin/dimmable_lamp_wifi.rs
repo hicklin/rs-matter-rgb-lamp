@@ -44,7 +44,6 @@ use rs_matter_embassy::stack::rand::reseeding_csprng;
 use rs_matter_embassy::wireless::esp::EspWifiDriver;
 use rs_matter_embassy::wireless::{EmbassyWifi, EmbassyWifiMatterStack};
 
-use esp_hal::analog::adc::{Adc, AdcConfig, Attenuation};
 use esp_hal::gpio::{Input, InputConfig, Pull};
 
 use embassy_futures::select::{Either, Either3, select, select3};
@@ -156,15 +155,14 @@ async fn main(_s: Spawner) {
     let sender = channel.sender();
 
     let button_on_off = Input::new(
-        peripherals.GPIO7,
+        peripherals.GPIO9,
         InputConfig::default().with_pull(Pull::Up),
     );
 
-    let mut adc1_config = AdcConfig::new();
-    let pin = adc1_config.enable_pin(peripherals.GPIO4, Attenuation::_11dB);
-    let adc1 = Adc::new(peripherals.ADC1, adc1_config);
+    let encoder_a = Input::new(peripherals.GPIO10, InputConfig::default().with_pull(Pull::Up));
+    let encoder_b = Input::new(peripherals.GPIO6, InputConfig::default().with_pull(Pull::Up));
 
-    let led_handler = LedHandler::new(sender, button_on_off, adc1, pin);
+    let led_handler = LedHandler::new(sender, button_on_off, encoder_a, encoder_b);
 
     let on_off_handler = OnOffHandler::new(
         Dataver::new_rand(&mut weak_rand),
@@ -252,7 +250,7 @@ async fn main(_s: Spawner) {
         frequency: Rate::from_khz(5),
     }).expect("Failed to configure PWM low speed timer");
 
-    let mut channel0 = ledc.channel(channel::Number::Channel0, peripherals.GPIO6);
+    let mut channel0 = ledc.channel(channel::Number::Channel0, peripherals.GPIO7);
     channel0.configure(channel::config::Config {
         timer: &lstimer0,
         duty_pct: 10,
@@ -267,7 +265,7 @@ async fn main(_s: Spawner) {
     // == Step 7: ==
     // Setup reset button
     let mut button_reset = Input::new(
-        peripherals.GPIO9,
+        peripherals.GPIO5,
         InputConfig::default().with_pull(Pull::Up),
     );
 

@@ -2960,6 +2960,7 @@ dependencies = [
  "portable-atomic",
  "rand_chacha",
  "rand_core 0.9.3",
+ "rotary-encoder-embedded",
  "rs-matter-embassy",
  "smart-leds",
  "static_cell",
@@ -3824,6 +3825,15 @@ dependencies = [
  "const-default",
  "libc",
  "svgbobdoc",
+]
+
+[[package]]
+name = "rotary-encoder-embedded"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5f801548d2efd7c221eb504e544999150ebebda721ea87e9290a82e552ca03fc"
+dependencies = [
+ "embedded-hal 1.0.0",
 ]
 
 [[package]]

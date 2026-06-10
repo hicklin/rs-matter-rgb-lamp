@@ -99,14 +99,15 @@ impl<'a, const N: usize> Driver<'a, N> {
             led: RefCell::new(led),
             receiver,
             colour: Cell::new(RGB8 {
-                r: 239,
-                g: 235,
-                b: 216,
+                r: 147,
+                g: 112,
+                b: 219,
             }),
             level: Cell::new(150),
-            mode: Mode::ColourChanging {
-                duration: Duration::from_secs(10),
-            },
+            mode: Mode::Solid,
+            // mode: Mode::ColourChanging {
+            //     duration: Duration::from_secs(10),
+            // },
         }
     }
 
