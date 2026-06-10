@@ -1,11 +1,10 @@
-use core::cell::{Cell, RefCell};
+use core::cell::Cell;
 
 #[cfg(feature = "defmt")]
 use defmt::{debug, error};
 #[cfg(feature = "log")]
-use log::{debug, info};
+use log::{debug};
 
-use rotary_encoder_embedded::quadrature::QuadratureTableMode;
 use rs_matter_embassy::matter::dm::Cluster;
 use rs_matter_embassy::matter::dm::clusters::app::{
     level_control::{self, LevelControlHooks, OptionsBitmap},
@@ -15,13 +14,8 @@ use rs_matter_embassy::matter::error::Error;
 use rs_matter_embassy::matter::tlv::Nullable;
 use rs_matter_embassy::matter::with;
 
-use esp_hal::gpio::Input;
-use rotary_encoder_embedded::{Direction, RotaryEncoder};
-
-use embassy_time::{Duration, Timer};
-use embassy_futures::select::select;
-
 use crate::led::{ColorLedSend, LedSend};
+use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 
 use crate::dm::color_control::ColorControlHooks;
 use rs_matter_embassy::matter::error::ErrorCode;
@@ -32,11 +26,18 @@ use palette::{
     Yxy,
 };
 
+use embassy_sync::signal::Signal;
+use embassy_futures::select::select;
+
+const BRIGHTNESS_INCREMENT: u8 = 5;
+
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct LedHandler<'a, S: LedSend> {
+pub struct LedHandler<S: LedSend> {
     sender: S,
-    button_on_off: RefCell<Input<'a>>,
-    encoder: RefCell<RotaryEncoder<QuadratureTableMode, Input<'a>, Input<'a>>>,
+    on_off_signal: &'static Signal<CriticalSectionRawMutex, bool>,
+    level_signal: &'static Signal<CriticalSectionRawMutex, bool>,
+    color_signal: &'static Signal<CriticalSectionRawMutex, bool>,
+    mode_signal: &'static Signal<CriticalSectionRawMutex, bool>,
     // OnOff Attributes
     on_off: Cell<bool>,
     start_up_on_off: Cell<Option<StartUpOnOffEnum>>,
@@ -45,30 +46,54 @@ pub struct LedHandler<'a, S: LedSend> {
     startup_current_level: Cell<Option<u8>>,
 }
 
-impl<'a, S: LedSend> LedHandler<'a, S> {
+impl< S: LedSend> LedHandler<S> {
     pub fn new(
         sender: S,
-        button_on_off: Input<'a>,
-        rotary_dt: Input<'a>,
-        rotary_clk: Input<'a>,
+        on_off_signal: &'static Signal<CriticalSectionRawMutex, bool>,
+        level_signal: &'static Signal<CriticalSectionRawMutex, bool>,
+        color_signal: &'static Signal<CriticalSectionRawMutex, bool>,
+        mode_signal: &'static Signal<CriticalSectionRawMutex, bool>,
     ) -> Self {
-
-
-        let encoder = RotaryEncoder::new(rotary_dt, rotary_clk).into_quadrature_table_mode(1);
-
         Self {
             sender,
-            button_on_off: RefCell::new(button_on_off),
-            encoder: RefCell::new(encoder),
+            on_off_signal,
+            level_signal,
+            color_signal,
+            mode_signal,
             on_off: Cell::new(true),
             start_up_on_off: Cell::new(None),
             current_level: Cell::new(Some(42)),
             startup_current_level: Cell::new(None),
         }
     }
+
+    pub async fn run(&self) {
+        loop {
+            select(self.run_color_task(), self.run_mode_task()).await;
+        }
+    }
+
+    // TODO: This task will be moved to the colour cluster's run impl.
+    async fn run_color_task(&self) {
+        loop {
+            match self.color_signal.wait().await {
+                true => todo!(),
+                false => todo!(),
+            }
+        }
+    }
+
+    async fn run_mode_task(&self) {
+        loop {
+            match self.mode_signal.wait().await {
+                true => todo!(),
+                false => todo!(),
+            }
+        }
+    }
 }
 
-impl<'a, S: LedSend> OnOffHooks for LedHandler<'a, S> {
+impl< S: LedSend> OnOffHooks for LedHandler<S> {
     const CLUSTER: Cluster<'static> = on_off::FULL_CLUSTER
         .with_revision(6)
         .with_features(on_off::Feature::LIGHTING.bits())
@@ -116,26 +141,14 @@ impl<'a, S: LedSend> OnOffHooks for LedHandler<'a, S> {
     }
 
     async fn run<F: Fn(on_off::OutOfBandMessage)>(&self, notify: F) {
-        // This should never panic since button_on_off is only accessed here.
-        #![allow(clippy::await_holding_refcell_ref)]
-        let mut button_ref = self.button_on_off.borrow_mut();
         loop {
-            button_ref.wait_for_any_edge().await;
-            info!("button triggered");
-            if button_ref.is_low() {
-                notify(on_off::OutOfBandMessage::Toggle);
-
-                // Debounce delay
-                Timer::after_millis(50).await;
-            } else {
-                // Debounce delay
-                Timer::after_millis(50).await;
-            }
+            self.on_off_signal.wait().await;
+            notify(on_off::OutOfBandMessage::Toggle);
         }
     }
 }
 
-impl<'a, S: LedSend> LevelControlHooks for LedHandler<'a, S> {
+impl< S: LedSend> LevelControlHooks for LedHandler<S> {
     const MIN_LEVEL: u8 = 1;
 
     const MAX_LEVEL: u8 = S::MAX_LED_LEVEL;
@@ -198,34 +211,21 @@ impl<'a, S: LedSend> LevelControlHooks for LedHandler<'a, S> {
     }
 
     async fn run<F: Fn(level_control::OutOfBandMessage)>(&self, notify: F) {
-        #![allow(clippy::await_holding_refcell_ref)]
-        let mut encoder = self.encoder.borrow_mut();
-        let increment = 5;
-
         loop {
-
-            let mut current_level = self.current_level().unwrap_or(0);
-            let (dt, clk) = encoder.pins_mut();
-            select(dt.wait_for_any_edge(), clk.wait_for_any_edge()).await;
-
-            match encoder.update() {
-                Direction::None => {
-                    info!("Encoder triggered: None");
-                    continue;
+            let level = match self.level_signal.wait().await {
+                true => {
+                    Self::MAX_LEVEL.min(
+                        self.current_level().unwrap_or(Self::MIN_LEVEL).saturating_add(BRIGHTNESS_INCREMENT))
                 },
-                Direction::Clockwise => {
-                    info!("Encoder triggered: Clockwise");
-                    current_level = Self::MAX_LEVEL.min(current_level.saturating_add(increment))
+                false => {
+                    Self::MIN_LEVEL.max(
+                        self.current_level().unwrap_or(Self::MIN_LEVEL).saturating_sub(BRIGHTNESS_INCREMENT))
                 },
-                Direction::Anticlockwise => {
-                    info!("Encoder triggered: Anti Clockwise");
-                    current_level = Self::MIN_LEVEL.max(current_level.saturating_sub(increment))
-                },
-            }
+            };
 
             notify(level_control::OutOfBandMessage::MoveToLevel {
                 with_on_off: true,
-                level: current_level,
+                level: level,
                 transition_time: Some(0),
                 options_mask: OptionsBitmap::default(),
                 options_override: OptionsBitmap::default(),
@@ -234,7 +234,7 @@ impl<'a, S: LedSend> LevelControlHooks for LedHandler<'a, S> {
     }
 }
 
-impl<'a, S: ColorLedSend> ColorControlHooks for LedHandler<'a, S> {
+impl< S: ColorLedSend> ColorControlHooks for LedHandler<S> {
     fn set_color(&self, x: u16, y: u16) -> Result<(), Error> {
         let x_f32 = x as f32 / 65536.0;
         let y_f32 = y as f32 / 65536.0;

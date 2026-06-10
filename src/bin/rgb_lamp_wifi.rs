@@ -16,9 +16,11 @@ use esp_metadata_generated::memory_range;
 #[cfg(feature = "defmt")]
 use defmt::info;
 #[cfg(feature = "log")]
-use log::info;
+use log::{info, debug};
 
 use rand_core::SeedableRng as _;
+use rotary_encoder_embedded::{Direction, RotaryEncoder};
+use rotary_encoder_embedded::quadrature::QuadratureTableMode;
 use rs_matter_embassy::epoch::epoch;
 use rs_matter_embassy::matter::crypto::{Crypto, default_crypto};
 // Data Model imports
@@ -50,7 +52,7 @@ use esp_hal::gpio::{Input, InputConfig, Pull};
 use embassy_futures::select::{Either, Either3, select, select3};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::Channel;
-use embassy_time::Timer;
+use embassy_time::{Duration, Timer};
 
 use matter_rgb_lamp::dm::color_control;
 use matter_rgb_lamp::led::rgb_led_driver::{self, LedSender};
@@ -62,6 +64,8 @@ use esp_hal::rmt::PulseCode;
 use esp_hal_smartled::buffer_size_async;
 
 extern crate alloc;
+use embassy_sync::signal::Signal;
+
 
 macro_rules! mk_static {
     ($t:ty) => {{
@@ -156,8 +160,18 @@ async fn main(_s: Spawner) {
 
     let encoder_a = Input::new(peripherals.GPIO10, InputConfig::default().with_pull(Pull::Up));
     let encoder_b = Input::new(peripherals.GPIO6, InputConfig::default().with_pull(Pull::Up));
+    let encoder = RotaryEncoder::new(encoder_a, encoder_b).into_quadrature_table_mode(2);
 
-    let led_handler = LedHandler::new(sender, button_on_off, encoder_a, encoder_b);
+    static ON_OFF_SIGNAL: Signal<CriticalSectionRawMutex, bool> = Signal::new();
+    static LEVEL_SIGNAL: Signal<CriticalSectionRawMutex, bool> = Signal::new();
+    static COLOR_SIGNAL: Signal<CriticalSectionRawMutex, bool> = Signal::new();
+    static MODE_SIGNAL: Signal<CriticalSectionRawMutex, bool> = Signal::new();
+
+    let ui_state_machine_task = async || {
+        ui_state_machine(button_on_off, encoder, &ON_OFF_SIGNAL, &LEVEL_SIGNAL, &COLOR_SIGNAL, &MODE_SIGNAL).await
+    };
+
+    let led_handler = LedHandler::new(sender, &ON_OFF_SIGNAL, &LEVEL_SIGNAL, &COLOR_SIGNAL, &MODE_SIGNAL);
 
     let on_off_handler = OnOffHandler::new(
         Dataver::new_rand(&mut weak_rand),
@@ -260,29 +274,29 @@ async fn main(_s: Spawner) {
     );
     let mut led_task = pin!(led_driver.run());
 
-    // == Step 7: ==
-    // Setup reset button
-    let mut button_reset = Input::new(
-        peripherals.GPIO5,
-        InputConfig::default().with_pull(Pull::Up),
-    );
+    // // == Step 7: ==
+    // // Setup reset button
+    // let mut button_reset = Input::new(
+    //     peripherals.GPIO5,
+    //     InputConfig::default().with_pull(Pull::Up),
+    // );
 
-    // Hold for 3 seconds to initiate a factory reset
-    let mut reset_button_task = async || {
-        loop {
-            button_reset.wait_for_falling_edge().await;
-            match select(button_reset.wait_for_rising_edge(), Timer::after_secs(3)).await {
-                Either::First(_) => (),
-                Either::Second(_) => {
-                    info!("Factor reset has not been implemented");
-                }
-            }
-        }
-    };
+    // // Hold for 3 seconds to initiate a factory reset
+    // let mut reset_button_task = async || {
+    //     loop {
+    //         button_reset.wait_for_falling_edge().await;
+    //         match select(button_reset.wait_for_rising_edge(), Timer::after_secs(3)).await {
+    //             Either::First(_) => (),
+    //             Either::Second(_) => {
+    //                 info!("Factor reset has not been implemented");
+    //             }
+    //         }
+    //     }
+    // };
 
     // == Step 7: ==
     // Run async tasks
-    match select3(&mut matter, &mut led_task, &mut pin!(reset_button_task())).await {
+    match select3(&mut matter, &mut led_task, &mut pin!(ui_state_machine_task())).await {
         Either3::First(r) => {
             panic!("Matter thread exited! {:?}", r)
         }
@@ -290,7 +304,7 @@ async fn main(_s: Spawner) {
             panic!("LED thread exited!")
         }
         Either3::Third(_) => {
-            panic!("Reset button thread exited!")
+            panic!("Physical UI state machine thread exited!")
         }
     }
 }
@@ -320,3 +334,108 @@ const NODE: Node = Node {
         ),
     ],
 };
+
+enum UiState {
+    Normal, // on/off brightness
+    Color, // -- colour change
+    Mode, // -- mode
+}
+
+// This function provides a UI state machine for a single encoder switch to control the LED.
+async fn ui_state_machine(
+    mut button: Input<'_>,
+    mut encoder: RotaryEncoder<QuadratureTableMode, Input<'_>, Input<'_>>,
+    on_off_signal: &'static Signal<CriticalSectionRawMutex, bool>,
+    level_signal: &'static Signal<CriticalSectionRawMutex, bool>,
+    color_signal: &'static Signal<CriticalSectionRawMutex, bool>,
+    mode_signal: &'static Signal<CriticalSectionRawMutex, bool>,
+) -> ! {
+    // let state = Atomic::new(UiState::Normal);
+    let mut state = UiState::Normal;
+    let multi_click_timeout = Duration::from_millis(300);
+    let debounce = Duration::from_millis(20);
+
+    loop {
+        let (dt, clk) = encoder.pins_mut();
+        match select(button.wait_for_falling_edge(), select(dt.wait_for_any_edge(), clk.wait_for_any_edge())).await {
+            Either::First(_) => {
+                Timer::after(debounce).await;
+                // If still pressed, wait for release. Debounce the release too so that
+                // release bounce cannot be mistaken for a second press.
+                if button.is_low() {
+                    button.wait_for_rising_edge().await;
+                    Timer::after(debounce).await;
+                }
+                match select(Timer::after(multi_click_timeout), button.wait_for_falling_edge()).await {
+                    Either::First(_) => {
+                        info!("single click");
+                        match state {
+                            UiState::Normal => {
+                                // toggle on/off
+                                on_off_signal.signal(true)
+                            },
+                            UiState::Color | UiState::Mode => {
+                                state = UiState::Normal;
+                            },
+                        }
+                    },
+                    Either::Second(_) => {
+                        // double click
+                        info!("Double click");
+                        match state {
+                            UiState::Normal => state = UiState::Color,
+                            UiState::Color => state = UiState::Mode,
+                            UiState::Mode => state = UiState::Normal,
+                        }
+                    },
+                }
+            },
+            Either::Second(_) => {
+                match encoder.update() {
+                    Direction::None => {
+                        continue;
+                    },
+                    Direction::Clockwise => {
+                        info!("Encoder triggered: Clockwise");
+                        match state {
+                            UiState::Normal => {
+                                // Increase brightness
+                                level_signal.signal(true)
+                            },
+                            UiState::Color => {
+                                // Increase HUE
+                                info!("Increasing HUE");
+                                color_signal.signal(true)
+                            },
+                            UiState::Mode => {
+                                // Rotate LED behaviour
+                                info!("Changing LED mode up");
+                                mode_signal.signal(true);
+                            },
+                        }
+                    },
+                    Direction::Anticlockwise => {
+                        info!("Encoder triggered: Anti Clockwise");
+                        match state {
+                            UiState::Normal => {
+                                // decrease brightness
+                                level_signal.signal(false)
+                            },
+                            UiState::Color => {
+                                // decrease HUE
+                                info!("Decreasing HUE");
+                                color_signal.signal(false)
+                            },
+                            UiState::Mode => {
+                                // Rotate LED behaviour
+                                info!("Changing LED mode down");
+                                mode_signal.signal(false);
+                            },
+                        }
+                    },
+                }
+            },
+        }
+
+    }
+}
