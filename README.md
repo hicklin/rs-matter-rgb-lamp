@@ -10,18 +10,8 @@ This projects uses [nix devenv](https://devenv.sh/) to maintain a reproducible s
 
 ## Hardware
 
-Care has been taken to support most esp32 MCUs, however, this project has been tested on the following hardware setup.
-
-- **MCU**: esp32-c6, specifically ESP32-C6-DevKitM-1 V1.0
-- **Factory reset button**: GPIO9, the *boot* button on the devkit
-- **On/Off button**: GPIO7 with pull up
-- **Level control potentiometer**: ADC1 GPIO4
-
-### Schematic
-
-![schematic](assets/rgb_lamp_schematic.jpg)
-_fig 1_: The wiring used for the above mentioned hardware.
-
+Care has been taken to support most esp32 MCUs.
+Having said that, the GPIO values are currently hard coded to work for the ESP32-C3-LCDkit-MB_V1.1.
 
 ## Build and run
 
@@ -65,18 +55,16 @@ To update the rust nightly version, change the `rustNightlyDate` date in `flake.
 
 ### Build
 
-The default features build for `esp32c6`.
+The default features build for `esp32c3`.
 
 ```
-cargo build --target riscv32imac-unknown-none-elf --release
+cargo build --release --bin rgb_lamp_wifi
 ```
-
-If not building in the Nix devenv, `+nightly` may be required.
 
 ### Flash
 
 ```
-espflash flash target/riscv32imac-unknown-none-elf/release/rgb_lamp_wifi --baud 1500000
+espflash flash target/riscv32imc-unknown-none-elf/release/rgb_lamp_wifi --baud 1500000
 ```
 
 ### Monitor
@@ -84,7 +72,7 @@ espflash flash target/riscv32imac-unknown-none-elf/release/rgb_lamp_wifi --baud 
 This is required to get commissioning information from the device.
 
 ```
-espflash monitor -elf target/riscv32imac-unknown-none-elf/release/rgb_lamp_wifi
+espflash monitor -elf target/riscv32imc-unknown-none-elf/release/rgb_lamp_wifi
 ```
 
 ## Usage of `rs-matter` APIs
